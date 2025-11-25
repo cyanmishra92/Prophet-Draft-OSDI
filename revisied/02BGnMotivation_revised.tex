@@ -1,0 +1,162 @@
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figs/DesnseMoE.pdf}
+\caption{MoE architecture comparison showing (a) traditional dense FFN block, (b) sparse MoE with top-1 routing (Switch Transformer), and (c) dense MoE with top-k routing and shared experts where Expert-4 is always activated (Qwen1.5-MoE). The routing mechanism determines expert selection strategies and creates fundamentally different optimization challenges.}
+\label{fig:moe_architecture}
+\end{figure*}
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
+\section{Background and Motivation}
+\label{sec:background}
+
+% Text matter begin
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
+
+\subsection{MoE Fundamentals and Current Bottlenecks}
+MoE architectures achieve computational efficiency by replacing dense feed-forward network (FFN) layers with specialized expert networks, where only a subset of experts are activated for each input token (refer \Cref{fig:moe_architecture}). For an input token $\mathbf{x}^{(l)}$ at layer $l$, the gating function computes expert selection probabilities through $G^{(l)}(\mathbf{x}^{(l)}) = \text{softmax}(\mathbf{W}_g^{(l)} \cdot \mathbf{x}^{(l)} + \mathbf{b}_g^{(l)})$, where $\mathbf{W}_g^{(l)}$ and $\mathbf{b}_g^{(l)}$ are learnable parameters. The routing mechanism selects the top-$k$ experts with highest probabilities, forming $\mathcal{S}_{\text{selected}} = \text{top-k}(G^{(l)}(\mathbf{x}^{(l)}))$. The final output combines selected experts' outputs weighted by their gating scores: $\mathbf{y}^{(l)} = \sum_{i \in \mathcal{S}_{\text{selected}}} G^{(l)}_i(\mathbf{x}^{(l)}) \cdot E_i^{(l)}(\mathbf{x}^{(l)})$. This creates a discrete mapping $r_\ell : \mathbb{R}^d \to \{1, \dots, E\}^k$ that assigns each token to its top-$k$ experts at layer $\ell$.\todo{We might need to add one liners for what each part of the layer does?}
+
+Modern MoE models exhibit significant architectural diversity in their routing strategies. Sparse routing approaches exemplified by Switch Transformer~\cite{fedus2022switch} employ top-1 expert selection, activating only 1 out of 128 experts per token (0.78\% density). Dense routing architectures like Qwen1.5-MoE-A2.7B activate multiple experts per token through top-k selection combined with shared experts, employing 64 total experts with 4 shared experts always activated alongside 4 selected from 60 routing experts, effectively activating 8 experts per token (12.5\% density). Comprehensive architectural details are provided in \Cref{appedndix:MoEModels}.
+
+% Despite computational efficiency advantages, MoE models face severe memory and bandwidth bottlenecks that fundamentally limit deployment potential. The memory bottleneck manifests as an acute I/O-to-compute ratio problem. Transferring a 6.3MB Switch Transformer expert over PCIe 4.0 requires $197\mu$s, while actual expert computation takes only $15\mu$s, creating a $13\times$ I/O-to-compute bottleneck. For Qwen1.5-MoE-A2.7B, loading a 386MB expert requires 12ms while computation needs only 0.8ms, resulting in a devastating $15\times$ bottleneck. As demonstrated in \Cref{fig:io_bottleneck}, I/O loading dominates 87-95\% of total execution time across different batch sizes.
+Despite computational efficiency advantages, MoE models suffer from severe memory and bandwidth bottlenecks driven by high I/O-to-compute ratios. For example, transferring a 6.3\,MB Switch Transformer expert over PCIe~4.0 takes $197\,\mu$s versus $15\,\mu$s for computation ($13\times$ slower), while loading a 386\,MB Qwen1.5-MoE-A2.7B expert requires 12\,ms versus 0.8\,ms ($15\times$ slower). As shown in \Cref{fig:io_bottleneck}, I/O dominates 87--95\% of execution time across batch sizes.
+
+
+% \begin{figure}[t]
+% \centering
+% \includegraphics[width=0.9\linewidth]{figs/bottleneck_severity_scaling.pdf}
+% \caption{
+% %I/O-to-compute bottleneck analysis across batch sizes 1-32 for Switch Transformer and Qwen1.5-MoE. I/O loading dominates 87-95\% of total execution time, demonstrating the severity of memory bandwidth limitations that worsen with batch size.
+% I/O-to-compute profiling for Switch Transformer and Qwen1.5-MoE across batch sizes 1--32 shows I/O loading dominating 87--95\% of execution time.
+% %, highlighting severe and worsening memory bandwidth bottlenecks with increasing batch size.
+% }
+% \label{fig:io_bottleneck}
+% \end{figure}
+
+% Current state-of-the-art solutions address individual bottlenecks but fail to provide comprehensive optimization. Traditional reactive caching employs on-demand expert loading with LRU-based replacement policies. ExpertFlow~\cite{expertflow} introduces predictive methods achieving $2\times$ to $10\times$ speedups but effectiveness diminishes with more than 32 experts. ProMoE~\cite{promoe} achieves $2.20\times$ prefill and $2.07\times$ decode speedups through proactive caching but focuses on single-token optimization. FateMoE~\cite{fatemoe} achieves $4.5\times$ speedups on edge GPUs but remains specialized for resource-constrained environments. Pre-gated MoE~\cite{pregated} achieves near-optimal performance within $1.23\times$ of ideal but requires architectural modifications. A comprehensive comparison is provided in \Cref{tab:moe_models_comprehensive}.
+
+State-of-the-art solutions address specific MoE bottlenecks but lack end-to-end optimization. Reactive caching uses on-demand expert loading with LRU replacement. ExpertFlow~\cite{expertflow} employs predictive loading for $2$--$10\times$ speedups, but degrades beyond 32 experts. ProMoE~\cite{promoe} achieves $2.20\times$ prefill and $2.07\times$ decode gains via proactive caching, targeting single-token optimization. FateMoE~\cite{fatemoe} delivers $4.5\times$ speedups on edge GPUs but is tailored to constrained settings. Pre-gated MoE~\cite{pregated} attains near-optimal performance within $1.23\times$ of ideal but requires architectural changes. See \Cref{tab:moe_models_comprehensive} for a detailed comparison.
+
+\todo{In the next paragraph, we directly tell about pre-fetching, and information theory, maybe we can tell pre-fetch is useful.}
+
+\subsection{Information-Theoretic Analysis}
+To rigorously establish the feasibility of intelligent expert prefetching, we conducted comprehensive analysis of expert routing patterns using 37,200 real traces totaling 3.34 million expert selections from Switch Transformer and Qwen MoE families. Our analysis reveals three fundamental forms of structure that existing approaches fail to exploit collectively, providing strong motivation for neural prediction approaches over simple frequency-based baselines.
+
+% \begin{figure}[]
+% \centering
+% \includegraphics[width=0.8\linewidth]{figs/all_layers_expert_popularity.pdf}
+% \caption{Expert popularity distribution showing power-law distribution.
+% %with exponent $\alpha = 1.293 \pm 0.05$ 
+% across all layers. Concentration effects shows that top 20\% experts handle up to 75\% of routing decisions.
+% %, showing consistent popularity bias regardless of layer depth.
+% }
+% \label{fig:power_law}
+% \end{figure}
+
+\subsubsection{Heavy-Tailed Expert Popularity Distribution}
+Expert selection frequencies follow a robust power-law distribution with exponent $\alpha = 1.293 \pm 0.05$ across all layers and workloads, as shown in \Cref{fig:power_law}. This heavy-tailed behavior creates extreme concentration effects where the top 20\% of experts handle up to 75\% of all routing decisions. The power-law structure predicts sublinear scaling of unique experts accessed by batches as $\mathbb{E}[U(B)] \sim C \cdot B^{0.932}$, enabling batch-aware deduplication with theoretical guarantees. Our empirical validation confirms this prediction with remarkable accuracy ($R^2 = 0.999$), as detailed in \Cref{fig:batch_scaling_validation}.
+
+This power-law structure enables universal, layer-independent predictive prefetching policies that achieve high hit rates by targeting popular experts, regardless of workload variations. However, simple frequency-based approaches fail because expert popularity exhibits significant temporal variations and layer-dependent specialization patterns that require more sophisticated modeling. Our analysis shows that naive frequency-based ranking achieves only 12.3\% prediction accuracy compared to our neural approach's 33.86\%, demonstrating the inadequacy of static popularity-based strategies.
+
+% \begin{table}[t]
+% \centering
+% \resizebox{\linewidth}{!}{%
+% \begin{tabular}{c|c|c|c|c|c}
+% \hline
+% \textbf{Batch Size} & \textbf{Theoretical} & \textbf{Empirical} & \textbf{Relative Error} & \textbf{Memory} & \textbf{Bandwidth} \\
+% \textbf{(B)} & \textbf{$B^{\alpha}$} & \textbf{(Mean $\pm$ SD)} & \textbf{(\%)} & \textbf{Savings} & \textbf{Reduction} \\
+% \hline
+% 1   & 1.06   & $1.00 \pm 0.00$ & 5.3\% & 0.0  & —     \\
+% 2   & 2.01   & $2.00 \pm 0.07$ & 1.0\% & 0.0  & 0.2\% \\
+% 4   & 3.84   & $3.94 \pm 0.24$ & 2.5\% & 0.1  & 1.5\% \\
+% 8   & 7.34   & $7.74 \pm 0.50$ & 5.4\% & 0.3  & 3.3\% \\
+% 16  & 14.00  & $14.73 \pm 1.00$ & 5.2\% & 1.3  & 7.9\% \\
+% 32  & 26.72  & $27.10 \pm 1.88$ & 1.4\% & 4.9  & 15.3\% \\
+% 64  & 51.00  & $47.16 \pm 2.88$ & 7.5\% & 16.8 & 26.3\% \\
+% \hline
+% \end{tabular}%
+% }
+% \caption{Batch scaling validation for expert deduplication showing theoretical predictions versus empirical measurements. The power-law scaling model $E = 1.055 \times B^{0.932}$ achieves $R^2 = 0.999$, validating sublinear scaling theory with relative errors below 5\% across most batch sizes.}
+% \label{tab:batch_scaling_validation}
+% \end{table}
+
+% \begin{figure}[]
+% \centering
+% \includegraphics[width=0.8\linewidth]{figs/batch_scaling_theory_vs_empirical_logx_bold.pdf}
+% \caption{Batch scaling validation for expert deduplication showing theoretical predictions versus empirical measurements
+% }
+% \label{fig:batch_scaling_validation}
+% \end{figure}
+
+\begin{figure*}[t]
+  \centering
+  \subfloat[I/O-to-compute profiling]{%
+    \includegraphics[width=0.32\linewidth]{figs/bottleneck_severity_scaling.pdf}%
+    \label{fig:io_bottleneck}
+  }\hfill
+  \subfloat[Expert popularity]{%
+    \includegraphics[width=0.32\linewidth]{figs/all_layers_expert_popularity.pdf}%
+    \label{fig:power_law}
+  }\hfill
+  \subfloat[Expert de-duplication]{%
+    \includegraphics[width=0.32\linewidth]{figs/batch_scaling_theory_vs_empirical_logx_bold.pdf}%
+    \label{fig:batch_scaling_validation}
+  }
+  \caption{
+  \textbf{I/O dominance, expert popularity bias, and batch-scaling validation in MoE systems.}
+  \textbf{(a)} I/O-to-compute profiling for Switch Transformer and Qwen1.5-MoE across batch sizes 1--32 shows that host/device I/O and memory movement dominate wall-clock time ($\approx$87–95\%), indicating a severe memory-bandwidth bottleneck that persists—and often worsens—with increased batch size.
+  \textbf{(b)} Expert popularity follows a heavy-tailed distribution across layers, with concentration effects in which the top 20\% of experts handle up to 75\% of routing decisions; this skew implies persistent load imbalance and cache/reuse opportunities for popular experts.
+  \textbf{(c)} Batch scaling validation for expert de-duplication: empirical measurements track the theoretical predictions over the tested batch regime, supporting the scaling law that de-duplication efficiency improves with batch size in line with the modeled collision/routing statistics.
+}
+  \label{fig:combined_moe_overview}
+\end{figure*}
+
+
+\subsubsection{Temporal Correlations in Expert Routing}
+
+Quantifying temporal predictability using mutual information reveals that expert routing contains 0.6217 bits of mutual information using 16-token history windows, representing 8.9\% of the theoretical maximum and providing 54\% uncertainty reduction compared to random prediction. \todo{We need to put whta it actually means?}. Multi-step prediction using 16-token context achieves 38\% higher information gain than single-step approaches. This demonstrates that neural sequence models can capture multi-step dependencies that simple heuristics miss, enabling prediction accuracies approaching information-theoretic limits.
+
+The temporal structure exhibits complex dependencies that vary across layers and input types. Early layers show stronger syntactic correlations with recent token history, while deeper layers exhibit semantic dependencies spanning longer contexts. This layer-specific behavior motivates our cross-layer attention mechanism that adapts prediction strategies based on layer depth and context. \todo{Rephrase -- we have not introduced crosslayer attention yet -- maybe this is the place where we can tell why cross layer attention will help}
+
+\begin{table}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{l|c|c|c}
+\hline
+\textbf{Analysis Component} & \textbf{Key Metric} & \textbf{Value} & \textbf{Interpretation} \\
+\hline
+\multirow{3}{*}{Expert Clustering} 
+& Optimal Clusters & 13 & Distinct expert specializations \\
+& Silhouette Score & 0.284 & Good clustering quality \\
+& Best Method & hierarchical & Algorithm selected \\
+\hline
+\multirow{4}{*}{Layer Specialization}
+& Entropy Trend & $R^2 = 0.633$ & Decreasing complexity \\
+& Concentration Trend & $R^2 = 0.279$ & Increasing focus \\
+& Entropy Slope & -0.0149 & Specialization rate \\
+& Concentration Slope & 0.0022 & Focus rate \\
+\hline
+\multirow{4}{*}{Semantic Structure}
+& Strong Pairs & 50 & Semantic relationships \\
+& Network Density & 0.9924 & Connection strength \\
+& Avg Degree & 126.0 & Expert connectivity \\
+& Max Degree & 127 & Hub experts \\
+\hline
+\end{tabular}%
+}
+\caption{Spatial clustering and semantic structure analysis revealing expert organization patterns. Expert clustering identifies 13 distinct specialization groups with good separation. Layer-wise analysis shows decreasing entropy and increasing concentration, confirming progressive specialization in deeper layers.}
+\label{tab:clustering_analysis}
+\end{table}
+
+\subsubsection{Spatial Clustering and Semantic Structure}
+Expert clustering analysis identifies 13 distinct semantic clusters across 128 experts with good separation (silhouette score 0.284), as detailed in \Cref{tab:clustering_analysis}. Cross-layer analysis reveals systematic expert specialization with decreasing entropy ($R^2 = 0.633$) and increasing concentration ($R^2 = 0.279$) as layer depth increases. The presence of 50 strong expert pair relationships indicates semantic structure that prediction models can exploit.\todo{maybe a diagram with correlation/clustering will help??}
+
+These findings demonstrate that experts organize into semantic clusters with layer-dependent specialization patterns, enabling cluster-aware prediction models to exploit relationships for improved accuracy. The spatial clustering provides complementary information to temporal patterns, as experts within the same cluster often exhibit correlated activation patterns that persist across different input sequences.
+
+\subsection{Limitations of Existing Approaches and Design Requirements}
+\todo{Abridge this and next paragraph maybe?}
+Current approaches face fundamental limitations preventing comprehensive MoE optimization. Existing predictive systems encounter a critical trade-off between prediction accuracy and computational overhead. Most critically, existing systems optimize for single-token scenarios, missing batch-level optimization opportunities. Cross-architecture generalization remains elusive, with solutions typically targeting specific MoE variants. Current approaches optimize individual bottlenecks in isolation rather than addressing the coupled nature of memory bandwidth, computational efficiency, and prediction accuracy.
+
+The convergence of power-law popularity, temporal correlations, and spatial clustering creates opportunities for comprehensive optimization that existing solutions cannot provide. The prediction mechanism must exploit multi-step temporal correlations through neural sequence modeling while operating within information-theoretic bounds. Cross-architecture generalization demands adaptive models that handle different routing strategies without extensive retraining. Batch-level optimization must leverage sublinear scaling properties to provide theoretical guarantees on memory bandwidth reduction.
+
+Our theoretical analysis transforms expert prefetching from engineering heuristic to theoretically-grounded optimization problem with quantifiable benefits. The convergence of these insights motivates our \design framework: a neural expert prefetching system that unifies learned cross-layer prediction with intelligent batch optimization, providing the first comprehensive solution to the expert loading challenge in modern MoE inference. By simultaneously exploiting temporal structure through neural sequence modeling, spatial relationships through cluster-aware optimization, and batch-level patterns through theoretically-grounded deduplication, \design addresses the fundamental limitations that prevent existing approaches from achieving optimal MoE inference performance.
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 

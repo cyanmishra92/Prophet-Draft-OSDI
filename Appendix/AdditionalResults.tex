@@ -1,0 +1,274 @@
+\section{Additional Results and Analysis}
+\label{sec:additional-results}
+
+This appendix provides comprehensive analysis of expert fetching patterns, memory bandwidth utilization, and deduplication efficiency across different MoE architectures. We present detailed performance characteristics that complement the main evaluation and provide deeper insights into Prophet's optimization strategies.
+
+\subsection{Expert Fetching Analysis}
+\label{subsec:expert-fetching-analysis}
+
+Expert fetching represents a critical bottleneck in MoE inference, where the number of experts loaded from memory directly impacts both latency and memory bandwidth consumption. Our analysis reveals significant differences in expert fetching patterns across baseline approaches and demonstrates Prophet's effectiveness in minimizing expert access overhead.
+
+\begin{figure*}[t]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_experts_fetched}%
+        \label{fig:switch-experts-fetched}
+    }
+    \hfill
+    % Qwen1.5
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_experts_fetched}%
+        \label{fig:qwen15-experts-fetched}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_experts_fetched}%
+        \label{fig:qwen3-experts-fetched}
+    }
+    \vspace{-10pt}
+    \caption{Expert fetching overhead comparison across MoE architectures. 
+    Prophet demonstrates substantial reductions in expert access: (a) Switch Transformer shows 2.1-2.8× lower expert fetching compared to baselines; 
+    (b) Qwen1.5 MoE benefits from reduced fetching of larger experts (386MB vs. 6.3MB); 
+    (c) Qwen3 MoE maintains efficient expert access patterns even with 256 experts, demonstrating scalability.
+    Prophet's batch-level deduplication provides logarithmic scaling benefits that become increasingly pronounced at larger batch sizes.}
+    \label{fig:combined-experts-fetched}
+\end{figure*}
+
+Figure~\ref{fig:combined-experts-fetched} demonstrates Prophet's superior expert fetching efficiency across all evaluated architectures. Key observations include:
+
+\begin{itemize}
+\item \textbf{Baseline Comparison}: ProMoE exhibits $2.1\times$ higher expert fetching overhead compared to Prophet due to proactive loading of potentially irrelevant experts. ExpertFlow shows $2.8\times$ overhead from migration-induced expert movements, while FATE demonstrates $2.3\times$ overhead from pipeline-aware scheduling complexities.
+
+\item \textbf{Deduplication Impact}: Prophet's batch-level deduplication reduces expert fetching by 60-75\% compared to non-deduplicating approaches. This benefit scales logarithmically with batch size, as duplicate expert requests become more prevalent in larger batches.
+
+\item \textbf{Architecture Scaling}: Prophet maintains consistent efficiency across different expert configurations: Switch (128 experts, 6.3MB each), Qwen1.5 (64 experts, 386MB each), and Qwen3 (256 experts), demonstrating broad applicability.
+\end{itemize}
+
+\subsection{Memory Bandwidth Analysis}
+\label{subsec:memory-bandwidth-analysis}
+
+Memory bandwidth represents a critical resource in MoE inference, with expert loading creating substantial data movement overhead. Our analysis examines how Prophet's architectural innovations impact memory subsystem utilization across different model configurations.
+
+\begin{figure*}[t]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_memory_bandwidth}%
+        \label{fig:switch-memory-bandwidth}
+    }
+    \hfill
+    % Qwen1.5
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_memory_bandwidth}%
+        \label{fig:qwen15-memory-bandwidth}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_memory_bandwidth}%
+        \label{fig:qwen3-memory-bandwidth}
+    }
+    \vspace{-10pt}
+    \caption{Memory bandwidth utilization comparison across MoE architectures. 
+    Prophet achieves sub-linear bandwidth scaling: (a) Switch Transformer shows logarithmic bandwidth growth vs. linear scaling of baselines; 
+    (b) Qwen1.5 MoE demonstrates 2.8× bandwidth reduction with larger experts (386MB); 
+    (c) Qwen3 MoE maintains efficient bandwidth usage despite coordinating 256 experts.
+    Prophet's deduplication and hierarchical caching reduce bandwidth requirements by 45-60\% across all architectures.}
+    \label{fig:combined-memory-bandwidth}
+\end{figure*}
+
+Figure~\ref{fig:combined-memory-bandwidth} illustrates Prophet's memory bandwidth optimization across architectures:
+
+\begin{itemize}
+\item \textbf{Sub-Linear Scaling}: Prophet achieves sub-linear memory bandwidth growth with increasing batch size, contrasting with the linear scaling of baseline approaches without deduplication.
+
+\item \textbf{Expert Size Impact}: Bandwidth benefits scale with expert size—Qwen1.5's 386MB experts amplify Prophet's 2.8× bandwidth reduction compared to Switch's 6.3MB experts, making optimization increasingly critical for larger models.
+
+\item \textbf{Cache Hierarchy Effectiveness}: The hierarchical cache system reduces main memory pressure across all architectures, with L1/L2 caches serving frequently accessed experts and minimizing expensive DRAM transfers.
+\end{itemize}
+
+\subsection{Deduplication Efficiency Analysis}
+\label{subsec:deduplication-analysis}
+
+Batch-level deduplication represents a core innovation in Prophet, eliminating redundant expert loading within batches. Our analysis quantifies deduplication effectiveness across different model architectures and batch configurations.
+
+\begin{figure*}[t]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_deduplication_efficiency}%
+        \label{fig:switch-deduplication}
+    }
+    \hfill
+    % Qwen1.5
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_deduplication_efficiency}%
+        \label{fig:qwen15-deduplication}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_deduplication_efficiency}%
+        \label{fig:qwen3-deduplication}
+    }
+    \vspace{-10pt}
+    \caption{Deduplication efficiency comparison across MoE architectures. 
+    Prophet achieves substantial redundancy elimination: (a) Switch Transformer shows 65-75\% deduplication at batch size 32; 
+    (b) Qwen1.5 MoE demonstrates amplified benefits with larger experts (386MB vs. 6.3MB); 
+    (c) Qwen3 MoE maintains 50-65\% efficiency despite 256 experts, proving scalability.
+    Deduplication efficiency follows logarithmic scaling, with benefits increasing as expert overlap probability grows with batch size.}
+    \label{fig:combined-deduplication}
+\end{figure*}
+
+Figure~\ref{fig:combined-deduplication} reveals deduplication effectiveness patterns across architectures:
+
+\begin{itemize}
+\item \textbf{Logarithmic Benefits}: Deduplication efficiency follows a logarithmic curve across all architectures, with larger batches providing proportionally greater benefits as expert overlap probability increases.
+
+\item \textbf{Expert Size Amplification}: Larger experts amplify deduplication benefits—Qwen1.5's 386MB experts provide 60× greater bandwidth savings per deduplication event compared to Switch's 6.3MB experts.
+
+\item \textbf{Scale Resilience}: Prophet maintains effective deduplication across different expert populations: Switch (128 experts), Qwen1.5 (64 experts), and Qwen3 (256 experts), demonstrating algorithmic scalability.
+\end{itemize}
+
+\subsection{Cross-Architecture Performance Insights}
+\label{subsec:cross-architecture-insights}
+
+Our comprehensive evaluation across Switch Transformer, Qwen1.5-MoE, and Qwen3-MoE reveals several critical insights about MoE inference optimization:
+
+\subsubsection{Scaling Laws and Architecture Dependencies}
+
+\begin{itemize}
+\item \textbf{Expert Size Impact}: Memory bandwidth becomes increasingly critical as expert size grows. Qwen1.5's 386MB experts amplify Prophet's optimization benefits by $60\times$ compared to Switch's 6.3MB experts.
+
+\item \textbf{Expert Population Scaling}: Prophet's hierarchical architecture scales effectively from 64 to 256 experts, maintaining performance benefits across different expert population sizes.
+
+\item \textbf{Batch Size Optimization}: Deduplication benefits scale logarithmically with batch size across all architectures, suggesting optimal batch size selection strategies for different deployment scenarios.
+\end{itemize}
+
+\subsubsection{Hardware Resource Utilization}
+
+\begin{itemize}
+\item \textbf{Memory Hierarchy Effectiveness}: The hierarchical cache system provides consistent benefits across all evaluated architectures, with hit rates remaining above 85\% for L1 cache across models.
+
+\item \textbf{Bandwidth Efficiency}: Prophet achieves $2.5\times$--$4.2\times$ memory bandwidth efficiency compared to baseline approaches, with benefits scaling with expert size.
+
+\item \textbf{Prediction Accuracy Scaling}: Neural prediction maintains 82-88\% accuracy across different architectures, demonstrating the generalizability of the prediction approach.
+\end{itemize}
+
+\subsubsection{Deployment Implications}
+
+\begin{itemize}
+\item \textbf{Hardware Configuration Guidance}: Larger expert models (like Qwen1.5) benefit more from high-bandwidth memory subsystems, while smaller expert models (like Switch) can achieve good performance with optimized cache hierarchies.
+
+\item \textbf{Batch Size Optimization}: Optimal batch sizes vary by architecture: Switch Transformer benefits from larger batches (32+) for deduplication, while Qwen models show benefits even at smaller batch sizes (8-16) due to larger expert granularity.
+
+\item \textbf{Prediction Horizon Selection}: Different architectures benefit from different prediction horizons: Switch at h=2, Qwen1.5 and Qwen3 at h=3, suggesting architecture-specific tuning opportunities.
+\end{itemize}
+
+\subsection{Comparative Analysis with State-of-the-Art}
+\label{subsec:comparative-analysis}
+
+Our evaluation demonstrates Prophet's substantial improvements over existing approaches across all evaluated metrics:
+
+\subsubsection{Latency Improvements}
+
+\begin{itemize}
+\item \textbf{Mean Latency}: Prophet achieves $1.5\times$--$3.2\times$ latency improvements compared to ProMoE, ExpertFlow, FATE, and PreGated-MoE across different architectures.
+
+\item \textbf{P99 Latency}: Tail latency improvements of $2.3\times$--$6.2\times$ demonstrate Prophet's consistency and predictability advantages.
+
+\item \textbf{Architecture Scaling}: Latency benefits increase with expert size, suggesting Prophet's effectiveness grows with model complexity.
+\end{itemize}
+
+\subsubsection{Memory Efficiency}
+
+\begin{itemize}
+\item \textbf{Memory Usage}: Prophet reduces memory consumption by $1.5\times$-$15\times$ compared to baseline approaches through effective deduplication and cache management.
+
+\item \textbf{Expert Fetching}: Expert access overhead reduction of $2.1\times$--$4.2\times$ across architectures demonstrates Prophet's effectiveness in minimizing expensive memory operations.
+
+\item \textbf{Bandwidth Utilization}: Sub-linear memory bandwidth scaling provides sustainable performance growth with increasing batch sizes.
+\end{itemize}
+
+\subsubsection{Cache Performance}
+
+\begin{itemize}
+\item \textbf{Hit Rates}: Prophet maintains 87-95\% cache hit rates across architectures, substantially outperforming traditional LRU/LFU approaches (45-50\%).
+
+\item \textbf{Prediction Accuracy}: Neural prediction achieves 82-88\% accuracy across different architectures and prediction horizons, enabling effective prefetching strategies.
+
+\item \textbf{Hierarchical Benefits}: The hierarchical cache system provides consistent performance benefits across all evaluated models and configurations.
+\end{itemize}
+
+\subsection{Key Insights and Discussion}
+\label{subsec:insights-discussion}
+
+Our comprehensive evaluation across three distinct MoE architectures validates several fundamental insights about expert routing optimization and reveals critical design principles for future MoE systems.
+
+\subsubsection{Exploitable Structure in Expert Routing}
+
+Our results validate that expert routing contains substantial exploitable structure across all evaluated architectures. The power-law popularity distribution $(\alpha = 1.293)$ remains consistent from Switch Transformer's 128 experts to Qwen3's 256 experts, suggesting universal optimization opportunities. This structure enables Prophet's batch deduplication to achieve 50-75\% redundancy elimination, translating directly to memory bandwidth savings that scale logarithmically with batch size.
+The temporal correlations identified through mutual information analysis prove crucial for cross-layer prediction. Prophet's neural predictor achieves 82-88\% accuracy across architectures by exploiting these dependencies, demonstrating that routing patterns are far from random and contain learnable dependencies that span multiple transformer layers.
+
+\subsubsection{Cross-Layer Dependencies and Architecture-Specific Adaptations}
+
+Cross-layer dependencies matter significantly for effective prefetching. Our analysis reveals that different architectures benefit from different prediction horizons: Switch Transformer at h=2, while Qwen models achieve optimal performance at h=3. This suggests that expert size and routing complexity influence the optimal prediction distance.
+Architecture-specific adaptations prove crucial: sparse routing (Switch) benefits from precision-focused prefetching with aggressive L1 caching, while dense routing (Qwen) requires coverage-oriented strategies with extensive deduplication. Prophet automatically adapts to these characteristics without requiring manual tuning, highlighting the importance of adaptive systems that adjust to routing patterns.
+
+\subsubsection{Batch-Level Optimization Opportunities}
+
+Batch-level optimization opportunities remain largely untapped by existing systems. Our deduplication algorithm delivers exponential memory savings at scale, reducing bandwidth requirements by 45-60\% across all architectures. The sub-linear scaling properties $(O(B^{0.932}))$ provide theoretical guarantees that become increasingly valuable as deployment scales increase.
+Notably, many baseline models encounter GPU out-of-memory (OoM) errors at larger batch sizes. We adapted additional memory optimizations (context length reduction, staged memory loading) to enable fair comparison, but Prophet's superior memory efficiency allows larger batch sizes without these constraints.
+
+\subsubsection{Deployment-Time vs. Training-Time Optimization}
+
+Prophet's plug-and-play deployment contrasts favorably with architectural approaches like PreGated-MoE. Although PreGated-MoE delivers near-optimal theoretical performance, its reliance on costly retraining (requiring weeks of compute for trillion-parameter models) hampers practical adoption. Prophet demonstrates that deployment-time optimization can achieve competitive benefits ($1.5\times$--$3.2\times$ speedups) without infrastructure disruption or model modification.
+This deployment flexibility becomes critical as MoE models continue scaling. The ability to optimize existing pre-trained models without retraining enables immediate deployment of optimization techniques across diverse model families and hardware configurations.
+
+\subsubsection{Hardware-Software Co-Design Implications}
+
+Our bandwidth analysis reveals that memory hierarchy design significantly impacts MoE performance. Qwen1.5's 386MB experts amplify Prophet's benefits by $60\times$ compared to Switch's 6.3MB experts, suggesting that future MoE architectures should consider expert size in relation to available memory bandwidth.
+The consistent effectiveness of Prophet's hierarchical caching across different hardware configurations (A100, RTX 3090, H100) demonstrates the approach's hardware agnostic nature, but optimal cache tier sizes vary significantly with GPU memory capacity and PCIe bandwidth characteristics.
+
+\subsection{Future Research Directions}
+\label{subsec:future-directions}
+
+Our analysis reveals several promising directions for future MoE optimization research:
+
+\subsubsection{Advanced Prediction Mechanisms}
+
+\begin{itemize}
+\item \textbf{Multi-Modal Prediction}: Incorporating attention patterns, token-level context, and semantic relationships for improved expert prediction accuracy beyond current 82-88\% levels.
+
+\item \textbf{Adaptive Prediction Horizons}: Dynamic horizon selection based on expert size, available bandwidth, and prediction confidence to optimize the accuracy-latency trade-off.
+
+\item \textbf{Cross-Request Learning}: Leveraging patterns across multiple concurrent requests to improve prediction accuracy in multi-tenant deployment scenarios.
+\end{itemize}
+
+\subsubsection{System-Level Optimizations}
+
+\begin{itemize}
+\item \textbf{Distributed Expert Management}: Extension to multi-GPU and multi-node scenarios with coordinated caching and expert migration strategies.
+
+\item \textbf{Quality-Performance Trade-offs}: Adaptive expert selection strategies that gracefully degrade quality under resource constraints while maintaining acceptable performance.
+
+\item \textbf{Hardware Co-Design}: Custom memory hierarchies and interconnect designs optimized specifically for MoE inference patterns and expert routing characteristics.
+\end{itemize}
+
+\subsection{Conclusion}
+\label{subsec:appendix-conclusion}
+
+This comprehensive analysis demonstrates Prophet's effectiveness across diverse MoE architectures and provides deep insights into the mechanisms driving performance improvements. The consistent benefits across Switch Transformer, Qwen1.5-MoE, and Qwen3-MoE validate Prophet's architectural principles and highlight the critical importance of intelligent expert management in modern MoE inference systems.
+Key findings include:
+\begin{itemize}
+\item \textbf{Universal Structure}: Power-law expert popularity $(\alpha = 1.293)$ and temporal correlations exist across all evaluated architectures, enabling consistent optimization opportunities
+\item \textbf{Scalable Deduplication}: Batch-level deduplication provides logarithmic performance scaling with sub-linear memory growth $(O(B^{0.932}))$ across all architectures
+\item \textbf{Cross-Architecture Prediction}: Neural prediction maintains high accuracy (82-88\%) across different model complexities and routing strategies
+\item \textbf{Expert Size Amplification}: Larger expert parameters amplify optimization benefits, with Qwen1.5's 386MB experts providing 60× greater bandwidth savings per optimization compared to Switch's 6.3MB experts
+\item \textbf{Hierarchical Cache Effectiveness}: Multi-tier caching provides consistent 85-95\% hit rates regardless of expert population size or architecture complexity
+\item \textbf{Deployment Flexibility}: Plug-and-play optimization achieves $1.5\times$-$3.2\times$ speedups without requiring costly model retraining, enabling immediate deployment across diverse model families
+\end{itemize}
+
+These results establish Prophet as a robust, scalable solution for MoE inference optimization that adapts automatically to different architectural characteristics while providing theoretical guarantees on performance improvements. The insights from this analysis provide a foundation for future research in intelligent expert management and highlight the critical importance of system-level optimization in realizing the full potential of large-scale MoE models.

@@ -1,0 +1,174 @@
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
+\section{Design of Prophet}
+\label{sec:design}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Our design directly addresses the patterns identified in \Cref{sec:Motivation}. Temporal correlations and semantic clustering motivate neural prediction architectures that can learn complex routing dependencies across multiple MoE layers. Power-law popularity scaling enables both intelligent caching strategies that target frequently accessed experts and batch deduplication algorithms that exploit sublinear expert growth patterns. I/O dominance drives our three-pronged approach: \textbf{1.} \textbf{neural prediction} to hide memory transfer latency, \textbf{2.} \textbf{deduplication} to reduce bandwidth pressure, and \textbf{3.} \textbf{hierarchical caching} to optimize utilization of the memory hierarchy from fast GPU memory to slower system storage.
+
+% Rather than treating expert loading as a reactive memory management problem, we transform it into a predictive optimization challenge that leverages learnable routing patterns. This fundamental shift from reactive to proactive expert management distinguishes our approach from prior work such as ExpertFlow~\cite{expertflow} and Pre-gated MoE~\cite{pregated}, which either rely on simpler heuristics or require architectural modifications. Our system operates transparently at inference time, requiring no modifications to pre-trained MoE models while providing model-agnostic acceleration across diverse architectures.
+
+% \subsection{Design Principles and Architecture Overview}
+% \label{subsec:design-principles}
+
+% \design's architecture comprises three interconnected components that operate synergistically. The neural expert predictor processes the routing history to forecast future expert selections, exploiting the temporal and spatial structure that we identified in the expert routing patterns. The batch deduplication engine identifies and eliminates redundant expert loads across batch items, capitalizing on the power-law concentration effects where popular experts dominate routing decisions. The hierarchical cache system implements prediction-driven prefetching across three tiers optimized for different access latencies, addressing the severe memory bandwidth bottlenecks that plague current MoE deployments.
+
+% Our design philosophy focuses on exploiting the complementary nature of the structural patterns we discovered. Temporal correlations enable multi-step prediction that provides sufficient lead time for proactive expert loading. Spatial clustering allows prediction models to leverage expert co-occurrence patterns and layer-wise specialization trends. Power-law popularity distributions create opportunities for both intelligent caching that targets frequently used experts and batch-level optimizations that exploit expert reuse across concurrent requests. These patterns collectively transform expert prefetching from an engineering heuristic into a theoretically grounded optimization problem with quantifiable benefits.
+
+Our design of \textit{Prophet} directly emerges from the insights presented in \Cref{sec:Motivation}. The observed temporal correlations and semantic clustering in expert routing patterns suggest the need for neural prediction architectures capable of modeling complex inter-layer dependencies. Simultaneously, the heavy-tailed, power-law popularity distribution of expert usage opens the door for strategies such as intelligent caching of frequently accessed experts and batch-aware deduplication to capitalize on sublinear expert growth rates. These insights, along with the I/O-dominated cost profile of MoE systems, motivate our three-pronged design: neural prediction to hide memory transfer latency, deduplication to alleviate bandwidth bottlenecks, and hierarchical caching to span the memory hierarchy from GPU to system storage.
+
+ 
+%For instance, \textbf{ExpertFlow} introduces a lightweight predictor to forecast routing paths before computation and then schedules expert transfers proactively—achieving substantial GPU memory savings and speedups of $2\times$--$10\times$ over baseline methods. \textbf{Pre-gated MoE}, on the other hand, redesigns the gating function to select experts for the next MoE block in advance, enabling overlapping of CPU→GPU transfers with computation and reducing latency without modifying model structure. These works take important steps toward proactive expert handling, but they either rely on architectural changes or still employ reactive mechanisms to some degree.
+Unlike earlier efforts that treat expert loading purely as a reactive memory management problem, \textit{Prophet} transforms it into a predictive optimization framework. 
+\textit{Prophet} operates transparently at inference time, requiring no changes to pre-trained MoE models, and offers model-agnostic acceleration by unifying structural insights with learned neural predictions. Its architecture tightly integrates three key components: a \textbf{neural expert predictor} that leverages temporal and spatial routing patterns, a \textbf{batch deduplicator} that exploits the heavy-tailed power-law distribution in expert usage to eliminate redundant loads, and a \textbf{hierarchical cache} that orchestrates prediction-driven expert prefetching across the memory hierarchy: from fast GPU memory to slower host storage; thus mitigating severe I/O bottlenecks. These components synergistically convert expert prefetching from an engineering heuristic into a theoretically grounded optimization problem with measurable performance advantages.
+
+
+% These components work together synergistically. Temporal correlations empower multi-step expert prefetching, granting ample lead time for preloading. 
+% %Spatial clustering enables the predictor to leverage patterns of expert co-occurrence and layer-wise specialization. 
+% Power-law distributions act as an enabling mechanism, as caching hot experts and deduplicating batch accesses significantly reduces bandwidth demands. By bringing these elements together, \textit{Prophet} transitions expert prefetching from an engineering heuristic into a principled optimization framework with measurable benefits.
+% In the following sections, we delve into the architecture of the neural predictor, detail the implementation of deduplication and hierarchical caching, and provide quantitative results that demonstrate the performance improvements enabled by our cohesive, pattern-driven design.
+
+
+\subsection{Neural Expert Prediction}
+\label{subsec:neural-predictor}
+The temporal correlations and layer-wise specialization patterns identified in our analysis motivate a neural sequence modeling approach that can capture the dependencies between routing decisions across multiple transformer layers. Consider a concrete example: when processing the sentence "The neural network learned to classify images accurately," early MoE layers route tokens like "neural" and "network" to experts specializing in technical vocabulary, while deeper layers route "classify" and "accurately" to experts handling semantic relationships and performance evaluation. Our predictor exploits these patterns by learning that tokens routed to technical vocabulary experts in the early layers are likely to be subsequently routed to semantic analysis experts in deeper layers. Since this can be seen as sequence modeling and understanding problem, we employ a tiny dense transformer to learn these patterns.
+
+% \subsubsection{Problem Formalization and Architecture Overview}
+% We formalize expert prediction as a sequence modeling task where the objective is to predict future expert selections based on historical routing patterns and current hidden states. Given a token at position $t$ in layer $\ell$, we define the input as $\mathcal{H} = \{E^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)}, H^{(\ell)}\}$ and the output as $\hat{E}^{(\ell+h)} = \text{Predictor}(\mathcal{H}; \theta)$, where $E^{(\ell-c+1:\ell)}$ represents the expert routing history over the past $c$ layers, $L^{(\ell-c+1:\ell)}$ encodes layer positions, $H^{(\ell)}$ denotes the current hidden states that serve as router inputs, and $h$ is the prediction horizon.
+
+% To illustrate this concretely, consider predicting expert selection for layer 8 when currently processing layer 6 (in \Cref{fig:predictor_architecture}). The predictor takes as input: the expert IDs selected for layers 4, 5, and 6 (routing history), the layer position encodings for these layers, and the hidden states from layer 6 that will be fed to the layer 8 router. The goal is to predict which expert will be selected at layer 8, providing a 3-layer prediction horizon that allows sufficient time for prefetching the predicted expert from system memory to GPU cache. The prediction horizon depends on the experts of MoE model (i.e. how many experts, how big are each experts etc.), the memory bandwidth (how long does it take to bring the said experts to GPU) and the computation window for the non-expert parts of the MoE model (used to hide the pre-fetch latency). In our case, for both switch and Qwen family models, running on consumer grade desktop machines, we observe that the prediction horizon of 3 is more than sufficient to hide the I/O latency.
+
+% Our predictor employs a dense transformer architecture, to learn routing patterns. The architecture begins with an input embedding layer where expert identifiers are mapped to dense representations through a learned embedding matrix $\mathbf{W}_E \in \mathbb{R}^{N_E \times d}$\todo{what are teh notations}. For Switch Transformer with 128 experts, each expert ID (0-127) is mapped to a 320-dimensional dense vector, while for Qwen MoE with 64 experts, each expert ID (0-63) gets its own 320-dimensional representation. This embedding dimension balances representational capacity with computational efficiency, ensuring the predictor remains lightweight relative to the main model.
+
+% \todo{establish a connection here -- to connect the transformer with the Dual position encoding; position of the layer}
+
+%%%%%%%%%%%%
+\subsubsection{Problem Formalization and Architecture Overview}
+
+We formalize expert prediction as a sequence modeling task that predicts future expert selections for individual token positions based on historical routing  (the collected traces as described in \Cref{sec:Motivation}) and current hidden states. For a specific token at sequence position $t$ currently being processed at layer $\ell$, our goal is to predict which expert will be selected for this same token at a future layer $\ell+h$, where $h$ represents the prediction horizon.
+
+
+\noindent\textbf{Input Representation:} The predictor input $\mathcal{H}_t$ for token position $t$ comprises three components:
+$\mathcal{H}_t = \{E_t^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)},$\\$H_t^{(\ell)}\} $
+% \begin{align}
+% \mathcal{H}_t &= \{E_t^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)}, H_t^{(\ell)}\} \label{eq:predictor_input}
+% \end{align}
+where $E_t^{(\ell-c+1:\ell)} = [e_t^{(\ell-c+1)}, e_t^{(\ell-c+2)}, \ldots, e_t^{(\ell)}]$ represents the expert routing history for token $t$ over the past $c$ layers, $L^{(\ell-c+1:\ell)} = [\ell-c+1, \ell-c+2, \ldots, \ell]$ encodes the layer positions within this context window, and $H_t^{(\ell)} \in \mathbb{R}^d$ denotes the current hidden state for token $t$ at layer $\ell$ that will be processed by future routers.
+%\noindent\textbf{Prediction Target:} 
+The predictor output is the predicted expert selection:
+%\begin{align}
+% 
+$\hat{e}_t^{(\ell+h)} = \text{Predictor}(\mathcal{H}_t; \theta)$ 
+%\label{eq:predictor_output}
+%\end{align}
+where $\theta$ represents the learnable parameters of the neural predictor model, including embedding matrices, transformer weights, and prediction head parameters.
+%\noindent\textbf{Batch Processing:} 
+For a batch of $B$ tokens
+%$\{t_1, t_2, \ldots, t_B\}$ 
+at layer $\ell$, we generate predictions for all tokens in the same positions simultaneously, enabling batch-level optimization and deduplication of predicted expert requirements.
+
+\noindent\textbf{Context Window Selection ($c$):} The context window $c$ determines how many previous layers' routing decisions to incorporate. Our empirical analysis reveals that $c = 3$ layers provides optimal prediction accuracy while maintaining computational efficiency. Longer contexts ($c > 5$) yield diminishing returns due to the exponential decay of temporal correlations identified in \Cref{sec:Motivation}, while shorter contexts ($c < 2$) lack sufficient history for effective pattern learning.
+
+\noindent\textbf{Prediction Horizon Selection ($h$):} The prediction horizon $h$ must provide sufficient lead time for expert prefetching while maintaining prediction accuracy. The optimal horizon depends on three factors: (1) expert loading latency determined by expert size and memory bandwidth, (2) non-expert computation time available for hiding I/O latency, and (3) prediction accuracy degradation with increasing horizon. For Switch Transformer (6.3MB experts) and Qwen MoE (386MB experts) on our evaluation hardware, $h = 3$ layers provides 15-20ms lead time, sufficient to hide expert loading behind computation while maintaining high prediction accuracy.
+
+\noindent\textbf{Architecture Design:} Our predictor employs a dense transformer architecture specifically designed for cross-layer routing prediction. The architecture avoids using MoE models to predict MoE routing, eliminating recursive complexity while enabling efficient pattern learning. Expert identifiers are embedded into dense representations through learned embedding matrices $\mathbf{W}_E \in \mathbb{R}^{N_E \times d}$, where $N_E$ denotes the expert vocabulary size (128 for Switch Transformer, 64 for Qwen1.5 MoE, 256 for Qwen3 MoE) and $d = 320$ represents the embedding dimension chosen to balance representational capacity with computational efficiency.
+
+\noindent\textbf{Layer Position Encoding:} To capture the hierarchical structure of transformer processing, we employ layer position encodings that enable the model to understand the significance of routing decisions at different depths. Each layer index $\ell$ in the context window is mapped to a learned embedding vector $\mathbf{W}_L[\ell] \in \mathbb{R}^d$, allowing the predictor to weight routing patterns differently based on their layer positions. Early layers typically exhibit syntactic routing patterns while deeper layers capture semantic dependencies, and our layer position encodings enable the model to automatically learn these layer-specific characteristics.
+
+\begin{figure}[]
+\centering
+\includegraphics[width=\linewidth]{figs/pipeline.drawio.pdf}
+\caption{Neural expert predictor scheduling, illustrating routing history from layers $\ell-2$ to $\ell$ combined with current hidden states enables prediction of experts at layer $\ell+3$. 
+}
+\label{fig:predictor_architecture}
+\end{figure}
+
+\noindent\textbf{Toy Example:} Consider predicting expert selection for token $t$ at layer 8 while currently processing layer 6 (\Cref{fig:predictor_architecture}). The predictor input includes: expert IDs selected for token $t$ at layers 4, 5, and 6 (routing history $E_t^{(4:6)}$), layer position encodings $L^{(4:6)} = [4, 5, 6]$, and the hidden state $H_t^{(6)}$ that will be processed by the layer 8 router. The prediction $\hat{e}_t^{(8)}$ identifies which expert token $t$ will likely require at layer 8, enabling prefetching with a 3-layer horizon that provides sufficient lead time for expert loading.
+This formalization enables systematic optimization of expert prefetching through neural sequence modeling while maintaining compatibility with existing pre-trained MoE models and providing theoretical guarantees on prediction performance through the information-theoretic bounds established in \Cref{sec:Motivation}.
+%%%%%%%%%%%%
+
+\subsubsection{Neural Predictor Architecture and Training Strategy}
+Building on the problem formalization above, we now detail the neural predictor architecture and training methodology that realizes the expert prediction framework. Our predictor employs a dense transformer architecture specifically optimized for cross-layer routing prediction, avoiding the recursive complexity of using MoE models to predict MoE routing while enabling sophisticated pattern learning through multi-head self-attention mechanisms.
+
+\noindent\textbf{Architecture Specification:} The predictor comprises 3 transformer layers with 10 attention heads each, utilizing model dimension $d_{\text{model}} = 320$ and feed-forward dimension $d_{ff} = 1280$. 
+The architecture parameters were determined through extensive ablation studies balancing prediction accuracy with computational efficiency, ensuring the predictor overhead remains below 1\% of expert execution time.
+
+\noindent\textbf{Input Processing and Embeddings:} Following the input formulation $\mathcal{H}_t = \{E_t^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)}, H_t^{(\ell)}\}$, the architecture processes each component through specialized embedding layers. Expert identifiers $E_t^{(\ell-c+1:\ell)}$ are mapped to dense representations via learned embedding matrix $\mathbf{W}_E \in \mathbb{R}^{N_E \times d_{\text{model}}}$, where each expert ID receives its own 320 dimensional representation. 
+The layer position encodings 
+are processed through a learned embedding matrix. This learned encoding enables the model to understand the hierarchical significance of routing decisions at different transformer depths, automatically learning that early layers capture syntactic patterns while deeper layers encode semantic dependencies. The hidden states $H_t^{(\ell)}$ undergo linear projection to match the model dimension before being combined with the embedded routing history and position encoding.
+
+\noindent\textbf{Training Data Collection and Preprocessing:} We collect expert routing traces from pre-trained MoE models processing diverse datasets to ensure robust cross-domain generalization. The training corpus includes Natural Questions for factual question-answering (demonstrating structured reasoning patterns), IMDB movie reviews for sentiment analysis (capturing emotional and stylistic routing), and CNN/DailyMail for abstractive summarization (exhibiting complex semantic progressions). For each forward pass through the MoE model, we systematically record expert selections $E_t^{(\ell)}$ at every layer $\ell$ for each token position $t$, corresponding hidden states $H_t^{(\ell)}$ that serve as router inputs, and sequence metadata including attention masks and token positions.
+
+Consider a training example from CNN/DailyMail summarization processing "Hurricane winds caused widespread damage across coastal regions." The trace captures a semantically meaningful progression: "Hurricane" initially routes to Expert-23 (meteorological phenomena) in layer 4, transitions to Expert-78 (natural disaster categorization) in layer 12, and finally selects Expert-91 (impact assessment and quantification) in layer 20. This teaches the predictor to recognize the semantic evolution from basic entity recognition through categorical understanding to complex impact analysis, demonstrating how routing patterns reflect the hierarchical processing inherent in transformer architectures.
+
+\begin{figure}[]
+\centering
+\includegraphics[width=0.9\linewidth]{figs/switch_prediction_accuracy.pdf}
+\vspace{-10pt}
+\caption{Predictor accuracy vs batch size for Switch transformer against the state-of-the-art. We observe a rapid decline is the accuracy beyond the prediction horizon, h = 3.}
+\label{fig:predictor_accuracy}
+%\vspace{-20pt}
+\end{figure}
+
+\noindent\textbf{Composite Loss Function and Training Objectives:} The model training employs a composite loss function that simultaneously optimizes prediction accuracy, ranking consistency, and confidence calibration:
+$\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{classification}} + \lambda_2 \mathcal{L}_{\text{ranking}} + \lambda_3 \mathcal{L}_{\text{confidence}}$. 
+The primary classification loss uses cross-entropy to optimize expert prediction accuracy. The auxiliary ranking loss encourages correct relative ordering of expert selection probabilities, ensuring that the model not only predicts the most likely expert but also maintains meaningful probability rankings for alternative experts. The confidence calibration loss employs the Brier score to ensure that prediction confidence scores correlate with actual accuracy, enabling reliable dynamic prefetching decisions. 
+
+\noindent\textbf{Optimization and Hyperparameter Selection:} Training employs the AdamW optimizer with $\beta_1 = 0.9$, $\beta_2 = 0.999$, weight decay of 0.01, and a learning rate schedule combining linear warmup over 500 steps followed by cosine annealing. The model achieves convergence within 15,000 training steps, typically requiring 3.5---4.5 hours on a single NVIDIA A100 GPU depending on the target MoE architecture and dataset size.
+Through systematic hyperparameter exploration across context windows $c \in \{1, 2, 3, 4, 5\}$ and prediction horizons $h \in \{1, 2, \dots 10\}$, we empirically determine that $c = 3$ layers and $h = 3$ layers provide optimal performance (refer \Cref{fig:predictor_accuracy}, and more results in \Cref{app:predictor}). The 3-layer context window captures sufficient routing history to identify emerging patterns without excessive computational overhead or overfitting to noise. The 3-layer prediction horizon balances prediction accuracy with pre-fetching constraints: longer horizons provide more pre-fetching lead time but suffer from exponentially decreasing accuracy due to accumulated uncertainty, while shorter horizons offer higher accuracy but insufficient time for hiding memory transfer latency behind computation. 
+Most importantly, \Cref{fig:predictor_accuracy} shows that our predictor model is more accurate in predicting the experts for future layers compared to state-of-the-art models (ProMoe~\cite{promoe} and PreGated MoE~\cite{pregated}).  
+%Additional details, of the pre-fetching model along with the model parameters, are given in \Cref{app:predictor}.
+
+\subsection{Batch-Aware Optimization}
+\label{subsec:batch-optimization}
+\subsubsection{Expert Deduplication Strategy}
+The power-law distribution of expert popularity creates significant opportunities for batch-level optimization that prior single-token approaches cannot exploit. The concentration effects we identified, where the most popular experts handle a disproportionate fraction of routing decisions, suggest that multiple tokens in a batch will frequently request overlapping sets of experts (\Cref{fig:batch_scaling_validation}). Our deduplication algorithm, as explained in \Cref{alg:deduplication} in \Cref{app:memoryCaching}, and illustrated in \Cref{fig:batch-deduplication} exploits this pattern by identifying unique experts across all batch items and computing an optimal loading schedule that prioritizes high-frequency experts.
+The algorithm reduces the total number of expert loads from $O(B \cdot k)$ for naive per-item loading to $O(B^{\alpha} \cdot k)$ where $\alpha = 0.932 < 1$, providing sublinear scaling that becomes increasingly beneficial at larger batch sizes. This theoretical guarantee stems directly from the power-law scaling property, which we empirically validated, ensuring predictable performance improvements as batch sizes increase.
+
+\subsubsection{Hardware-Aware Transfer Scheduling}
+Beyond deduplication, we implement sophisticated transfer mechanisms that pipeline expert loading with computation to hide memory bandwidth bottlenecks. Rather than loading all experts before computation begins, we divide the transfers into chunks that can overlap with the ongoing computation.
+This pipelining reduces effective loading latency by hiding transfer costs behind computation, a technique particularly effective when combined with our predictive prefetching that provides sufficient lead time for memory operations. The scheduler incorporates hardware-specific bandwidth constraints to prevent memory bottlenecks through utility-based optimization that combines prediction confidence, expert frequency, and recency. Using prediction confidence scores, we initiate transfers for high-confidence predictions before routing decisions are finalized, with the confidence threshold dynamically adjusted based on available bandwidth and cache capacity to ensure the system adapts to varying hardware capabilities.
+
+\begin{figure}[]
+\centering
+\includegraphics[width=0.7\linewidth]{figs/DeDuplication.pdf}
+\caption{Expert deduplication before transferring to the GPU memory reduces bandwidth requirements significantly.}
+\label{fig:batch-deduplication}
+\vspace{-10pt}
+\end{figure}
+
+\subsection{Hierarchical Caching System}
+\label{subsec:caching} 
+The extreme concentration effects on expert popularity, combined with the hierarchical memory architecture in modern GPU systems, motivate a two-tier caching approach that balances access latency with capacity constraints. \design employs a two-level cache design that maps directly to the hardware memory hierarchy: L1 cache utilizes the main GPU memory for ultra-low latency access, while the L2 cache leverages the host memory for high-capacity storage with moderate transfer overhead.
+
+\subsubsection{Memory Hierarchy and Cache Design}
+Our two-level cache architecture directly reflects the memory characteristics of modern GPU systems. The L1 cache resides in GPU main memory (typically 24-80GB HBM on data center GPUs) and provides sub-microsecond access latency for experts already resident on the GPU. On the other hand, the L2 cache utilizes the host system memory (128-1024GB DDR4/DDR5) and incurs PCIe transfer latency ($\sim$200-500$\mu$s depending on expert size) but offers significantly larger capacity for storing the entire expert repertoire. This design leverages the natural memory hierarchy.
+Note that the L1 cache capacity is constrained by the availability GPU memory availability after accounting for model parameters and activations, typically allowing storage of 20-50 experts depending on expert size and GPU configuration. L2 cache capacity is limited only by available system memory, easily accommodating all experts for production MoE models. %(128+ experts).
+
+\subsubsection{Prediction-Driven Prefetching Policy}
+The prefetching policy maps prediction confidence to cache placement decisions with two-tier logic optimized for the GPU-host memory hierarchy. High-confidence predictions are prefetched directly to L1  cache (GPU) for immediate availability, ensuring that experts most likely to be used incur minimal loading latency. Medium and lower-confidence predictions are prefetched to L2 cache (host), providing speculative coverage while conserving precious GPU memory for high-certainty predictions.
+The confidence-based allocation strategy ensures that limited GPU memory is reserved for experts with the highest probability of use, while the abundant host memory provides comprehensive coverage for speculative prefetching. This approach contrasts with uniform caching strategies that treat all predictions equally regardless of confidence levels, leading to suboptimal GPU memory utilization.
+
+\subsubsection{Cache Management and Promotion Strategy}
+The two-level cache implements sophisticated replacement and promotion mechanisms that exploit the GPU-host memory hierarchy. Within L1  cache, experts are evicted using a confidence-aware LRU policy that considers both recency and original prediction confidence. When GPU cache capacity is exceeded, the expert with the lowest combined score of recency and confidence is evicted to make space for incoming high-confidence predictions.
+Promotion from L2  cache to L1 cache occurs when experts in host memory receive high-confidence predictions or demonstrate frequent access patterns. 
+This promotion strategy ensures that the most valuable experts migrate to the fastest cache tier over time, allowing the cache hierarchy to automatically adapt to workload-specific access patterns. The system maintains detailed access statistics for each expert to enable intelligent promotion decisions based on both immediate prediction confidence and longer-term usage trends. Furtehr details on cache management are provided in \Cref{app:memoryCaching}.
+
+
+\begin{figure}[]
+\centering
+\includegraphics[width=0.9\linewidth]{figs/ProphetDesign.pdf.pdf}
+\caption{Overall design of Prophet: For every layer, we run the expert prediction (\circled{1}) which goes for the expert selection logic to find the expert in the cache (\circled{2a}). If a hit, the expert is loaded to the LLM (\circled{3}); otherwise, upon a miss, the expert is looked up in the host memory (\circled{2b}) and unique experts are selected (\circled{3b}) and loaded (\circled{4b}) to the GPU and LLM (\circled{3}).}
+\vspace{-10pt}
+\label{fig:overallDesign}
+%\vspace{-20pt}
+\end{figure}
+
+\subsection{System Integration}
+\label{subsec:integration}
+
+\Cref{fig:overallDesign} illustrates how Prophet's three components (along with the execution flow) integrate to form a complete expert prefetching system. The neural predictor runs on GPU, processing routing history from previous layers to generate expert predictions with confidence scores. These predictions drive the batch deduplication engine, which identifies unique experts across batch items and computes optimal loading schedules. The hierarchical cache system maps prediction confidence to cache placement, ensuring high-priority experts reach fast GPU memory while providing speculative coverage through lower cache tiers.
+
+
+CPU-GPU coordination enables asynchronous operation where expert loading overlaps with computation. While the GPU executes layer $\ell$, the predictor analyzes routing patterns to prefetch experts for layer $\ell+3$, providing sufficient lead time to hide memory transfer latency. The system intercepts MoE router outputs without model modification, operating transparently at inference time.
+Prophet adapts automatically to different MoE architectures: sparse routing (Switch Transformer) employs precision-focused prefetching with aggressive L1 caching, while dense routing (Qwen MoE) uses coverage-oriented strategies with extensive deduplication. This plug-and-play approach requires only initial predictor training without costly model retraining, enabling deployment across diverse hardware configurations from edge devices to data center GPUs.
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 

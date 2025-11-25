@@ -1,0 +1,360 @@
+%%
+%% This is file `sample-sigconf.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% samples.dtx  (with options: `all,proceedings,bibtex,sigconf')
+%% 
+%% IMPORTANT NOTICE:
+%% 
+%% For the copyright see the source file.
+%% 
+%% Any modified versions of this file must be renamed
+%% with new filenames distinct from sample-sigconf.tex.
+%% 
+%% For distribution of the original source see the terms
+%% for copying and modification in the file samples.dtx.
+%% 
+%% This generated file may be distributed as long as the
+%% original source files, as listed above, are part of the
+%% same distribution. (The sources need not necessarily be
+%% in the same archive or directory.)
+%%
+%%
+%% Commands for TeXCount
+%TC:macro \cite [option:text,text]
+%TC:macro \citep [option:text,text]
+%TC:macro \citet [option:text,text]
+%TC:envir table 0 1
+%TC:envir table* 0 1
+%TC:envir tabular [ignore] word
+%TC:envir displaymath 0 word
+%TC:envir math 0 word
+%TC:envir comment 0 0
+%%
+%%
+%% The first command in your LaTeX source must be the \documentclass
+%% command.
+%%
+%% For submission and review of your manuscript please change the
+%% command to \documentclass[manuscript, screen, review]{acmart}.
+%%
+%% When submitting camera ready or to TAPS, please change the command
+%% to \documentclass[sigconf]{acmart} or whichever template is required
+%% for your publication.
+%%
+%%
+\documentclass[sigplan,nonacm,review]{acmart}
+%\documentclass[sigconf, screen, review]{acmart}
+
+
+%%%% %%%% %%%% %%%%
+%%%%% Packages and Commands %%%%%
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+%\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+
+
+\usepackage{multirow}
+\usepackage{wrapfig}
+
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{wrapfig}
+\usepackage[subfigure]{tocloft}
+\usepackage{subcaption}
+\usepackage{amsfonts,bm}
+\usepackage{natbib} 
+\usepackage{makecell}
+
+\usepackage{algorithm}
+
+
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{multicol}
+\usepackage{setspace}
+
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows}
+\usepackage{circuitikz}
+ \usepackage{tabularray}
+ \usepackage{multirow}
+\usepackage{colortbl}
+%\usepackage{cleveref}
+\usepackage{ifthen}
+\usepackage{listings}
+\usepackage{tabularx}
+
+
+\usepackage[inline]{enumitem}
+\usepackage{hyperref}
+\usepackage[capitalise,nameinlink]{cleveref}
+
+%%%% Commands %%%%
+% FIXME
+\newcommand{\fixme}[1]{\textcolor{red}{#1}}
+%CIRCLED
+% \DeclareRobustCommand*\circled[1]{\tikz[baseline=(char.base)]{
+%           \node[shape=circle,draw,fill=black,text=white,font=\bf,inner sep=1pt] (char)
+%             {\normalsize#1};}}
+
+\DeclareRobustCommand*\circled[1]{%
+  \tikz[baseline=(char.base)]{%
+    \node[shape=circle,
+          draw=black, line width=0.5pt,  % black outline at 0.5pt
+          fill={rgb,255:red,245;green,245;blue,245}, % F5F5F5
+          text=black,
+          inner sep=0pt,
+          minimum size=10pt] (char) {\fontsize{10pt}{10pt}\selectfont #1};}}
+          
+% TOPK
+\newcommand{\topk}{\texttt{top-k }}
+% R+A
+\newcommand{\RA}{\texttt{BA}}
+
+%s Section ref
+\newcommand{\xref}[1]{\S\ref{#1}}
+% Rishabh's macro
+%\newcommand\rishabh[1]{\textcolor{blue}{RJ: #1}}
+\newboolean{showcomments}
+\setboolean{showcomments}{true} % Change to false to hide the text
+
+\newcommand{\rishabh}[1]{%
+  \ifthenelse{\boolean{showcomments}}%
+    {\textcolor{blue}{RJ: #1}}%  % if true, print normally
+    {\phantom{\textcolor{blue}{RJ: #1}}}% % if false, print an invisible copy (space preserved)
+}
+
+%\newcommand\design[1]{\textcolor{black}{MaestroRAG}}
+
+\newcommand\todo[1]{\textcolor{red}{TODO: #1}}
+% \renewcommand\rishabh[1]{}
+% table needs
+\usepackage[table]{xcolor} % For cell coloring
+\usepackage{makecell} % For multi-line cells
+\usepackage{pifont} % For tick and cross marks
+\usepackage{booktabs} % For better table styling
+\usepackage{comment}
+
+\newcommand{\cmark}{\ding{51}} % Tick mark
+\newcommand{\xmark}{\ding{55}} % Cross mark
+
+\newcommand{\flashRAG}{FlashRAG~\cite{jin2024flashrag}}
+\newcommand{\edgeRAG}{EdgeRAG~\cite{EdgeRAG}}
+\newcommand{\pipeRAG}{PipeRAG~\cite{jiang2024piperag}}
+
+\newcommand{\design}{Prophet } % Change Name here
+
+
+%\usepackage{amsmath}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+%%%%%%%%%%%%%%%%%%
+
+
+%%%% %%%% %%%% %%%%
+
+% Define the circled command
+% \newcommand{\circled}[1]{%
+%   \tikz[baseline=(char.base)]{
+%     \node[shape=circle,
+%           fill={rgb,255:red,245;green,245;blue,245}, % F5F5F5 color
+%           text=black,
+%           inner sep=0pt,
+%           minimum size=15pt] (char) {\fontsize{10pt}{10pt}\selectfont #1};}}
+
+%\usepackage{xcolor}
+\usepackage{tcolorbox}
+
+% Style for the box
+\tcbset{
+  colback=blue!5!white,
+  colframe=blue!75!black,
+  boxrule=0.5pt,
+  arc=2pt,
+  left=1pt,
+  right=1pt,
+  top=1pt,
+  bottom=1pt
+}
+
+% Define counter and environment
+\newcounter{insightcounter}
+\newenvironment{insight}{
+  \refstepcounter{insightcounter}%
+  \begin{tcolorbox}
+  \textbf{Insight \theinsightcounter:} \em
+}{
+  \end{tcolorbox}
+}
+
+
+% Python code style
+\lstdefinestyle{mypython}{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{orange},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    tabsize=4
+}
+%%%% %%%% %%%% %%%%
+
+
+%%
+%% \BibTeX command to typeset BibTeX logo in the docs
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+%% Rights management information.  This information is sent to you
+%% when you complete the rights form.  These commands have SAMPLE
+%% values in them; it is your responsibility as an author to replace
+%% the commands and values with those provided to you when you
+%% complete the rights form.
+\setcopyright{none} 
+%\setcopyright{acmlicensed}
+\copyrightyear{2024}
+\acmYear{2024}
+\acmDOI{XXXXXXX.XXXXXXX}
+
+
+\acmISBN{978-1-4503-XXXX-X/18/06}
+
+%%\citestyle{acmauthoryear}
+\settopmatter{printfolios=true}
+\settopmatter{printacmref=false}
+
+%%
+%% end of the preamble, start of the body of the document source.
+\begin{document}
+\title{Prophet: Neural Expert Prediction for Efficient Mixture-of-Experts Inference}
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+
+\input{src/00abstract_revised}
+    
+\end{abstract}
+
+
+%%
+%% The code below is generated by the tool at http://dl.acm.org/ccs.cfm.
+%% Please copy and paste the code instead of the example below.
+%%
+%\begin{CCSXML}
+%<ccs2012>
+% <concept>
+%  <concept_id>00000000.0000000.0000000</concept_id>
+%  <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
+%  <concept_significance>500</concept_significance>
+% </concept>
+% <concept>
+%  %<concept_id>00000000.00000000.00000000</concept_id>
+%  <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
+%  <concept_significance>300</concept_significance>
+% </concept>
+% <concept>
+%  %<concept_id>00000000.00000000.00000000</concept_id>
+%  <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
+%  <concept_significance>100</concept_significance>
+% </concept>
+% <concept>
+ % <concept_id>00000000.00000000.00000000</concept_id>
+%  <concept_desc>Do Not Use This Code, Generate the Correct Terms for Your Paper</concept_desc>
+%  <concept_significance>100</concept_significance>
+% </concept>
+%</ccs2012>
+%\end{CCSXML}
+
+%\ccsdesc[500]{Do Not Use This Code~Generate the Correct Terms for Your Paper}
+%\ccsdesc[300]{Do Not Use This Code~Generate the Correct Terms for Your Paper}
+%\ccsdesc{Do Not Use This Code~Generate the Correct Terms for Your Paper}
+%\ccsdesc[100]{Do Not Use This Code~Generate the Correct Terms for Your Paper}
+
+%%
+%% Keywords. The author(s) should pick words that accurately describe
+%% the work being presented. Separate the keywords with commas.
+%\keywords{RAG, Encoding, Pipelining, Resource Allocation}
+%% A "teaser" image appears between the author and affiliation
+%% information and the body of the document, and typically spans the
+%% page.
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+%%%%%%%%%%  CHAPTERS GOES HERE   %%%%%%%%%%
+% Organization:
+%src :      Chapters
+%figs:      All diagrams
+%tabNalgo:  Tables, Algorithms, Pseudocodes
+%appendix:  Appendix Chalters
+%archived:  Previous submission matter
+
+% Start Chapters
+%\input{src/01Introduction}
+\input{src/01Itroduction}
+%\input{src/01Introduction_revised}
+\input{src/02BGnMotivation}
+%\input{src/02BGnMotivation_revised}
+\input{src/04Design}
+%\input{src/04Design_revised}
+\input{src/05Implementation&Eval}
+\input{src/07RelatedWork}
+\input{src/08Conclusions}
+%\input{}
+
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+
+% End Chapters
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+%%%%%%%%%% PUT BIBLIOGRAPHY HERE %%%%%%%%%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+%\clearpage
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{sample-base}
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+%%%%%%%%%%   APPENDIX GOES HERE  %%%%%%%%%%
+%\clearpage
+%% If your work has an appendix, this is the place to put it.
+\appendix
+\input{Appendix/AdditionalResults}
+\input{Appendix/MemHierarchy}
+\input{Appendix/Predictor}
+\input{Appendix/Caching}
+\input{Appendix/MoEModels}
+
+
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+
+
+
+
+\end{document}
+\endinput
+%%
+%% End of file `sample-sigconf.tex'.

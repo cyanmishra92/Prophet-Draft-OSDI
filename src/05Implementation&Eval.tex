@@ -1,0 +1,181 @@
+\begin{figure*}[t]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_memory_usage}%
+        \label{fig:switch-memory-usage}
+    }
+    \hfill
+    % Qwen1.5
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_memory_usage}%
+        \label{fig:qwen15-memory-usage}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+     \includegraphics[width=0.32\linewidth]{figs/qwen3_memory_usage}%
+        %\includegraphics[width=0.32\linewidth]{figs/qwen15_memory_usage}%
+        \label{fig:qwen3-memory-usage}
+    }
+    \vspace{-10pt}
+    \caption{Memory usage overhead comparison of baseline methods relative to Prophet across different MoE architectures. 
+    Prophet's batch-aware deduplication reduces memory consumption: (a) on Switch Transformer, baselines use $1.5\times$–$2.5\times$ more memory; 
+    (b) on Qwen1.5 MoE, competing methods consume $1.8\times$–$2.2\times$ more memory; 
+    (c) on Qwen3 MoE, Prophet maintains efficiency at scale with up to $2.8\times$ memory savings.
+    %, enabling deployment on resource-constrained hardware. 
+    Here and after: \textcolor{red}{$\times$}: means the GPU hits OoM Error without optimization or the feature is unavailable. We ensure optimizing the memory footprint of the baselines where ever possible.
+}
+    \label{fig:combined-memory-usage}
+\end{figure*}
+\begin{figure*}[h]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_cache_hit_rate}%
+        \label{fig:switch-cache-hit-rate}
+    }
+    \hfill
+    % Qwen1.5
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_cache_hit_rate}%
+        \label{fig:qwen15-cache-hit-rate}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_cache_hit_rate}%
+        % \includegraphics[width=0.32\linewidth]{figs/qwen15_cache_hit_rate}%
+        \label{fig:qwen3-cache-hit-rate}
+    }
+    \vspace{-10pt}
+    \caption{Cache hit rates of different MoE expert caching strategies across MoE Models. 
+    Prophet's neural prediction and hierarchical caching achieve superior hit rates: (a) on Switch Transformer, significantly outperforming simple policies (LRU, LFU) and advanced baselines (ProMoE, ExpertFlow); 
+    (b) on Qwen1.5 MoE, sustaining 85–95\% hit rates across batch sizes; 
+    (c) on Qwen3 MoE, delivering consistent 90–99\% hit rates, demonstrating scalability to larger architectures with hundreds of experts.}
+    \label{fig:combined-cache-hit-rate}
+\end{figure*}
+ 
+\section{Implementation and Evaluation}
+\label{sec:implementation}
+
+% Text matter begin
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
+
+\subsection{Implementation}
+\label{subsec:implementation-details}
+
+\noindent\textbf{Neural Predictor}
+We implement the neural predictor as a 6-layer dense transformer with 8.4M parameters. The predictor processes the 3-layer routing history to predict expert selections 3 layers ahead, balancing prefetch lead time with accuracy. Training uses routing traces from the Natural Questions, IMDB, and CNN/DailyMail datasets. Details of the Neural Predictor is given in \Cref{subsec:neural-predictor} and \cref{app:predictor}.
+
+\noindent\textbf{Baseline Systems}
+We compare our proposal against six fundamentally different approaches to expert caching. \textbf{Traditional caching} (LRU, LFU) represents reactive strategies that load experts on-demand without prediction, relying solely on access frequency patterns that prove ineffective for dynamic expert routing.
+\textbf{1. ProMoE}~\cite{promoe} employs stride-based prefetching, assuming regular access patterns by predicting that expert $E_i$ will be needed again after a fixed stride interval. This fails when routing exhibits complex temporal dependencies that require sequence modeling. \textbf{2. ExpertFlow}~\cite{expertflow} uses dynamic expert placement with token distribution analysis, but lacks cross-layer prediction capabilities and degrades beyond 32 experts due to capacity assumptions. \textbf{3. FATE}~\cite{fate} implements pipeline-aware scheduling optimized for edge deployment, using cross-layer gates but missing batch-level optimization entirely.
+\textbf{4. PreGated-MoE}~\cite{pregated} represents architectural approaches where router $L$ predicts experts for layer $L+1$ during training, achieving near-optimal performance, but requiring costly model retraining. In contrast, \textbf{Prophet} operates as plug-and-play deployment, using cross-layer attention to capture dependencies that single-layer approaches miss, combined with batch deduplication that existing systems cannot exploit.
+
+\noindent\textbf{Implementation Details}
+Our implementation comprises 15,200 \texttt{LoC} using PyTorch 2.0~\cite{pytorch} and HuggingFace Transformers~\cite{hftf}. We build on existing MoE infrastructures, instrumenting routing decisions through lightweight hooks. We faithfully reimplemented {\em all baselines}, ensuring fair comparison under identical hardware constraints. Our experiments used NVIDIA A100 (Switch Transformer), RTX 3090 (Qwen1.5), and H100 (Qwen3) GPUs under iso-cache constraints: 40MB for Switch Transformer, 20MB for Qwen1.5 MoE, and 80MB for Qwen3 MoE. We evaluated across batch sizes 1-64 (context length: 256) with 770+ configurations, reporting means over 150 runs with 95\% confidence intervals.
+
+% \noindent\textbf{Experimental Methodology}
+% %\label{subsec:evaluation-methodology}
+% Our evaluation examines three MoE architectures when targeting diverse workloads. Primary metrics include end-to-end latency, memory usage, cache hit rates, and expert fetch counts. We used Natural Questions (factual QA), IMDB (sentiment analysis), and CNN/DailyMail (summarization) to capture the varying expert routing patterns, with a context length limited to 256 tokens for fair comparison.
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+\begin{figure*}[ht!]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_mean_latency}%
+        \label{fig:switch-mean-latency}
+    }
+    \hfill
+    % Qwen1.5 (first)
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_mean_latency}%
+        \label{fig:qwen15-mean-latency}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+        %\includegraphics[width=0.32\linewidth]{figs/qwen3_mean_latency}%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_mean_latency}%
+        \label{fig:qwen3-mean-latency}
+    }
+    \vspace{-10pt}
+    \caption{Mean latency overhead of baseline methods compared to Prophet across different MoE architectures. 
+    Prophet consistently outperforms all baselines: (a) on Switch Transformer, achieving $4\times$ speedup over ProMoE and $2.0\times$--$2.2\times$ over FATE and ExpertFlow; 
+    (b) on Qwen1.5 MoE, delivering $1.5\times$--$2.8\times$ speedup; 
+    (c) on Qwen3 MoE, maintaining strong performance scaling with $2.1\times$--$4.5\times$ improvements, validating effectiveness across diverse expert configurations.}
+    \label{fig:combined-mean-latency}
+\end{figure*}
+\begin{figure*}[h!]
+    \centering
+    % Switch Transformer
+    \subfloat[Switch Transformer]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_p99_latency}%
+        \label{fig:switch-p99-latency}
+    }
+    \hfill
+    % Qwen1.5
+    \subfloat[Qwen1.5 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_p99_latency}%
+        \label{fig:qwen15-p99-latency}
+    }
+    \hfill
+    % Qwen3 MoE
+    \subfloat[Qwen3 MoE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_p99_latency}%
+        %\includegraphics[width=0.32\linewidth]{figs/qwen15_p99_latency}
+        \label{fig:qwen3-p99-latency}
+    }
+    \vspace{-10pt}
+    \caption{P99 latency overhead of baseline methods compared to Prophet across different MoE architectures. 
+    Prophet maintains consistently low tail latencies critical for production deployment: (a) on Switch Transformer, competing methods exhibit $1.5\times$–$2.8\times$ worse P99 performance; 
+    (b) on Qwen1.5 MoE, Prophet achieves $1.6\times$–$2.5\times$ lower tail latencies; 
+    (c) on Qwen3 MoE, Prophet delivers robust tail-latency guarantees with $1.8\times$–$3.2\times$ improvements 
+    {(with additional memory optimizations)}.
+    %, ensuring SLA compliance at scale.
+    }
+    %\vspace{-10pt}
+    \label{fig:combined-p99-latency}
+\end{figure*}
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
+
+%\vspace{-20pt}
+\subsection{ Analysis of Results}
+\label{subsec:results-analysis}
+
+%\todo{Start with memory, then move to end2end latency -- what are we exactly measuring; for deduplication also gide the results; }
+\noindent\textbf{Memory Efficiency and Cache Performance}
+Prophet's memory efficiency advantage stems from exploiting power-law expert popularity through batch deduplication. For instance, as shown in ~\Cref{fig:combined-memory-usage}, at a batch size of 64, naive loading requires 256 expert transfers for Switch Transformer (4 experts/token × 64 tokens), but power-law concentration means only 32 unique experts are needed (87.6\% reduction). Baselines cannot exploit this structure, consuming $1.5\times$--$15\times$ more memory across different batch sizes and causing GPU memory bloating that forces smaller batch sizes or expert swapping.
+Memory scaling follows our validated sublinear relationship because popular experts dominate routing decisions. Expert-23 appears in 45\% of routing decisions across all batch items, so loading it once serves multiple requests. ExpertFlow and ProMoE miss this optimization entirely, while traditional caching loads experts reactively without considering cross-batch reuse patterns.
+Hierarchical cache performance (\Cref{fig:combined-cache-hit-rate}) demonstrates prediction quality through confidence calibration. Prophet's 99.4\% hit rate versus 65-80\% for baselines reflects three advantages: (1) \textbf{Prediction accuracy}: $\sim87$\% versus $\sim 60$\% enables better cache placement, (2) \textbf{Confidence estimation}: high-confidence predictions (72.3\% L1 hits) receive priority allocation, and (3) \textbf{Hierarchical coverage}: medium/low confidence predictions provide speculative coverage (27.1\% L2 hits) that traditional binary caching cannot achieve (Additional results in \Cref{sec:additional-results}).
+
+\noindent\textbf{Memory Hierarchy Analysis}
+Our analysis highlights Prophet's advantages using the metric of  \textit{AMATE} (Average Memory Access Time per Expert). We regard AMATE as a critical performance indicator because latency in Mixture-of-Experts (MoE) architectures is primarily constrained by the time required to fetch expert parameters. Operationally, AMATE quantifies the mean latency to locate the selected expert(s) and transfer their parameters from the host (CPU) memory to the device (GPU) memory, corresponding to the CPU-side stage depicted in the lower portion of \Cref{fig:predictor_architecture}.
+%and \textit{TMAT} (Total Memory Access Time). 
+%These capture complementary aspects of memory efficiency---per-expert vs. aggregate system behavior. 
+
+\noindent{\underline{\textbf{AMATE:}} Prophet achieves $8\times$--$12\times$ better per-expert efficiency than baselines. At batch size of 1, improvements stem solely from cache effects, while at batch-32/64, deduplication accounts for $57$--$75\%$ of total gains, reflecting Prophet's ability to exploit expert popularity (top $20\%$ of experts serve $75\%$ of routes). Further details are given in \Cref{app:memory_hierarchy_analysis} and breakdown graphs are shown in \Cref{fig:amate-breakdown}.}
+%\underline{\textbf{TMAT:}} Prophet reduces aggregate access time by $10\times$--$15\times$, capturing both latency and frequency costs. Cache benefits dominate at batch size of 1 ($70$--$80\%$), while deduplication grows systematically, reaching $24$--$28\%$ of improvements at batch size of 64. This compounding effect drives stronger scalability at higher loads. A detailed analysis of AMATE and TMAT is given in \Cref{sec:memory_hierarchy_analysis}.
+
+\noindent\textbf{Cross-Architecture Analysis}
+Architecture-specific behaviors reveal why different MoE designs create distinct optimization challenges. \textbf{Switch Models} (sparse top-1 routing) shows the highest Prophet speedups ($4\times$ over ProMoE) because prediction errors have minimal impact (i.e., missing one expert prediction affects only one expert per token). The sparse routing pattern amplifies the benefits of prediction accuracy, making our 87\% accuracy highly effective.
+\textbf{Qwen architectures} (dense top-k routing) exhibit different trends: smaller relative improvements ($2.8\times$ over baselines) but greater absolute memory savings due to increased expert overlap. Top-8 routing means that each token activates 8 experts, creating more deduplication opportunities when batch items share routing patterns. Prophet automatically adapts by predicting top-16 experts rather than top-3, ensuring adequate coverage for higher expert density.
+
+\noindent\textbf{Baseline degradation patterns differ by architecture:} ExpertFlow performs reasonably on Switch Transformer but collapses on Qwen due to its 32-expert capacity assumption (Qwen has 64). ProMoE's stride-based prediction works marginally for Switch Transformer's more regular patterns but fails entirely on Qwen's complex top-k routing where expert selection depends on fine-grained probability distributions rather than deterministic top-1 choices.
+
+\noindent\textbf{Ablation:} Component ablation reveals architecture dependent synergies: neural prediction provides consistent $1.8\times$--$2.4\times$ gains across all architectures, while batch de-duplication benefits $1.3\times$ gains on sparse Switch Transformer versus $2.1\times$ on dense Qwen. Hierarchical caching contributes uniformly ($1.2\times$--$1.7\times$) because confidence-based placement works regardless of routing strategy. The additive combination delivers $2\times$--$15\times$ improvements, with larger gains on architectures that provide more optimization opportunities.
+
+\noindent\textbf{End-to-End Performance}
+Prophet delivers $1.5\times$--$3.2\times$ speedups across all architectures (\Cref{fig:combined-mean-latency}), with performance scaling that reveals fundamental differences between approaches. {\em The key insight is that different baselines fail for different reasons:} ProMoE's stride-based prefetching assumes periodic patterns that do not exist in transformer routing, achieving $\sim 60$\% prediction accuracy versus our 87\%. ExpertFlow's single-layer optimization misses cross-layer dependencies, while FATE's edge focus limits aggressive prefetching when resources are available. Critically, baseline performance \textit{degrades} at higher batch sizes due to three factors: (1) \textbf{Cache thrashing}: traditional LRU/LFU policies cause increased misses as batch diversity grows, (2) \textbf{Bandwidth saturation}: reactive loading creates memory bottlenecks that worsen with batch size, and (3) \textbf{Missed deduplication}: baselines load identical experts multiple times per batch. Prophet's $1.8\times$--$4.2\times$ improvements over ProMoE stem from exploiting cross-layer dependencies: When layer 4 routes to expert-23, layer 7 predictably routes to expert-78, enabling proactive loading. P99 latency results (\Cref{fig:combined-p99-latency}) reveal the Prophet's critical advantage: $2\times$--$4.8\times$ tail latency improvements. Traditional systems exhibit variance due to unpredictable cache misses (a single missed expert causes $15\times$ loading delay). Prophet's confidence-based prefetching eliminates this variance by ensuring that high-probability experts are preloaded, maintaining consistent sub-millisecond access times.
+
+%%%%%
+% \subsection{Discussion}
+% \label{subsec:discussion}
+% Our results validate three key insights in the context of MoE systems optimization. First, expert routing contains a substantial exploitable structure. Second, cross-layer dependencies matter significantly. Third, batch-level optimization opportunities remain largely untapped by existing systems, with our deduplication delivering exponential memory savings at scale. The generality of power-law expert popularity across architectures suggests universal optimization opportunities. However, architecture-specific adaptations prove crucial: sparse routing benefits from precision-focused prefetching, while dense routing requires coverage-oriented strategies. This highlights the importance of adaptive systems that automatically adjust to routing characteristics.
+% Prophet's plug-and-play deployment (no model retraining) contrasts favorably with architectural approaches like PreGated-MoE~\cite{pregated}. Although PreGated-MoE delivers near-optimal theoretical performance, its reliance on costly retraining hampers practical adoption.
+% %Prophet demonstrates that deployment-time optimization can achieve competitive benefits without infrastructure disruption.
+% Notably, many models encounter GPU out-of-memory (OoM) errors at larger batch sizes.  We adapted additional memory optimizations (like shortening the context length, staged memory loading, etc.) to reduce the memory overhead whenever possible -- especially for the cases of measuring cache performance and P99 latency.
+%%%
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 

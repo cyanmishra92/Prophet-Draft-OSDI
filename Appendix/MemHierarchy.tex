@@ -1,0 +1,74 @@
+\section{Memory Hierarchy Performance Analysis}
+\label{app:memory_hierarchy_analysis}
+
+This section provides a comprehensive analysis of Prophet's memory hierarchy optimizations through Average Memory Access Time per Expert (AMATE). 
+
+\subsection{AMATE: Per-Expert Memory Access Efficiency}
+\label{subsec:amate_analysis}
+
+AMATE quantifies the average time required to access each expert from the memory hierarchy, accounting for both cache hit rates and expert deduplication efficiency. This metric captures per-expert efficiency by normalizing total memory access time by the number of unique experts accessed:
+
+\begin{equation}
+\text{AMATE} = \frac{\sum_{i} (\text{access\_time}_i \times \text{frequency}_i)}{\text{num\_unique\_experts}}
+\end{equation}
+
+Prophet's AMATE performance demonstrates systematic advantages across all evaluated architectures, with baselines exhibiting $8\times$--$12\times$ worse performance relative to Prophet's optimized memory hierarchy utilization.
+
+\begin{figure*}[ht]
+    \centering
+    % Switch Transformer AMATE
+    \subfloat[Switch Transformer AMATE]{%
+        \includegraphics[width=0.32\linewidth]{figs/switch_amate_breakdown}%
+        \label{fig:switch-amate}
+    }
+    \hfill
+    % Qwen1.5 AMATE
+    \subfloat[Qwen1.5 MoE AMATE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen15_amate_breakdown}%
+        \label{fig:qwen15-amate}
+    }
+    \hfill
+    % Qwen3 AMATE
+    \subfloat[Qwen3 MoE AMATE]{%
+        \includegraphics[width=0.32\linewidth]{figs/qwen3_amate_breakdown}%
+        \label{fig:qwen3-amate}
+    }
+    \vspace{-10pt}
+    \caption{AMATE breakdown across MoE architectures showing Prophet's per-expert memory access efficiency advantages. 
+    Prophet achieves 8×--12× better AMATE performance through: (a) Switch Transformer benefits from precise prediction in sparse routing; 
+    (b) Qwen1.5 MoE demonstrates consistent efficiency across dense routing patterns; 
+    (c) Qwen3 MoE maintains scalability advantages with hundreds of experts. 
+    The breakdown reveals growing deduplication benefits (dotted pattern) at higher batch sizes, reaching 57--75\% of total improvements at batch-64.
+    \textcolor{red}{X}: OoM conditions where baselines exceed memory capacity.}
+    \label{fig:amate-breakdown}
+    \vspace{-10pt}
+\end{figure*}
+
+\subsubsection{AMATE Component Analysis}
+
+The AMATE breakdown reveals, as depicted in \Cref{fig:amate-breakdown} two primary sources of Prophet's efficiency advantages:
+
+\noindent\textbf{Caching Benefits (Diagonal Pattern):} Cache hit rate improvements contribute consistently across batch sizes, providing the foundational advantage through Prophet's prediction-driven prefetching. At batch-1, caching represents 100\% of AMATE benefits since deduplication opportunities don't exist. Prophet's neural prediction achieves 87\% expert prediction accuracy, enabling proactive loading to fast GPU memory (L1 cache) versus reactive loading from slower CPU memory (L2 cache). The $15\times$ latency difference between GPU and CPU memory access creates substantial per-expert efficiency gains.
+
+\noindent\textbf{De-duplication Benefits (Dotted Pattern):} Expert deduplication becomes increasingly dominant at higher batch sizes, reflecting Prophet's exploitation of power-law expert popularity distributions. At batch-32 and batch-64, deduplication contributes 57--75\% of total AMATE improvements. This scaling occurs because Prophet identifies that popular experts (top 20\%) handle 75\% of routing decisions, enabling systematic reduction in unique experts loaded per batch. Baselines perform redundant expert loading due to poor cross-batch optimization, resulting in linear scaling of expert accesses rather than Prophet's sublinear $B^{0.932}$ scaling.
+
+\noindent\textbf{Cross-Architecture Consistency:} AMATE benefits remain consistent across diverse MoE architectures, demonstrating Prophet's generalizability. Switch Transformer (sparse top-1 routing), Qwen1.5 MoE (dense top-4 routing), and Qwen3 MoE (dense top-8 routing) all exhibit similar $8\times$--$12\times$ AMATE advantages, indicating that Prophet's approach adapts effectively to different routing strategies and expert densities.
+
+\noindent\textbf{Cache Penalties (Diagonal Pattern):} Cache-related penalties remain relatively stable across batch sizes, contributing 70--80\% of baseline penalties at batch-1 and 72--76\% at higher batch sizes. This stability reflects the fact that cache hit rates degrade gradually with increasing batch diversity, but the absolute impact scales linearly with expert access frequency. Prophet's predictive prefetching maintains high hit rates (85--95\%) compared to reactive baselines (10--65\%), directly translating to reduced aggregate memory access time.
+
+% \noindent\textbf{Deduplication Penalties (Dotted Pattern):} Deduplication-related TMAT penalties exhibit systematic growth with batch size, increasing from 0\% at batch-1 to 24--28\% at batch-64. This growth pattern reflects the multiplicative nature of TMAT: each additional redundant expert access multiplies with longer access times. Prophet's power-law exploitation reduces unique expert requirements from linear $B^{0.98}$ scaling (baselines) to sublinear $B^{0.932}$ scaling, creating compounding benefits that become more significant at production-relevant batch sizes.
+
+
+% \subsection{AMATE vs TMAT: Comparative Insights}
+% \label{subsec:amate_tmat_comparison}
+
+% The divergent behavior between AMATE and TMAT metrics provides complementary insights into Prophet's optimization approach:
+
+% \noindent\textbf{Deduplication Impact Differences:} AMATE shows higher deduplication percentages (57--75\%) compared to TMAT (24--28\%) at batch-64. This difference occurs because AMATE normalizes by the number of unique experts accessed, amplifying the impact of expert deduplication, while TMAT captures absolute costs where cache penalties dominate due to per-access latency differences.
+
+% \noindent\textbf{Scaling Behavior:} AMATE demonstrates more dramatic deduplication scaling (0\% to 75\%) compared to TMAT's gradual growth (0\% to 28\%). This reflects AMATE's sensitivity to expert count reduction versus TMAT's sensitivity to total time reduction, highlighting different aspects of Prophet's performance benefits.
+
+% \noindent\textbf{Practical Implications:} TMAT provides more direct correlation with end-to-end latency improvements, making it the preferred metric for system-level performance analysis. AMATE offers insights into per-expert efficiency that guide algorithmic optimizations and resource allocation decisions.
+
+
+%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 

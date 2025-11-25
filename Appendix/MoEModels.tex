@@ -1,0 +1,98 @@
+\section{Mixture of Experts Architectures: A Comprehensive Analysis}
+\label{appedndix:MoEModels}
+
+\subsection{Architectural Patterns in MoE Models}
+
+Mixture of Experts (MoE) models have emerged as a dominant paradigm for scaling language models beyond traditional dense architectures. These models achieve computational efficiency through conditional computation, activating only a subset of parameters for each input token. We identify several key architectural patterns across modern MoE implementations:
+
+\subsubsection{Routing Mechanisms}
+
+The routing mechanism determines which experts process each token. Three primary strategies have emerged:
+
+\textbf{Top-k Routing:} The predominant approach, where k experts are selected based on highest routing scores. Top-2 routing (Mixtral, Grok-1, Arctic, GShard) represents the industry standard, balancing computational efficiency with model capacity. Higher k values (DeepSeek's top-6 to top-12) enable finer-grained specialization but increase computational overhead.
+
+\textbf{Capacity-Constrained Routing:} Implemented in models like GShard and Switch Transformer, this approach limits the number of tokens each expert can process, preventing load imbalance but potentially dropping tokens when capacity is exceeded.
+
+\textbf{Threshold-Based Routing:} Used in ST-MoE variants, where experts are activated only when routing confidence exceeds a learned threshold, enabling dynamic computation allocation.
+
+\subsubsection{Expert Architecture Strategies}
+
+\textbf{Homogeneous Experts:} Most models employ identically-structured experts (Mixtral, Grok-1), simplifying implementation and load balancing. Expert sizes range from tiny (29MB in DeepSeekMoE-16B) to massive (38GB in Grok-1).
+
+\textbf{Shared Experts:} A hybrid approach pioneered by DeepSeek and Qwen, where 1-4 experts process all tokens while remaining experts are selectively routed. This ensures baseline model capacity while maintaining specialization benefits. DeepSeek-V3's configuration (1 shared + 256 routed) exemplifies this pattern at scale.
+
+\textbf{Heterogeneous Experts:} Emerging in models like ERNIE 4.5, where experts vary in size and capability, potentially matching computational resources to task complexity.
+
+\subsubsection{Scaling Strategies}
+
+Two distinct scaling philosophies have emerged:
+
+\textbf{Few Large Experts:} Models like Mixtral-8x7B and Grok-1 use 8 experts with billions of parameters each, maximizing individual expert capacity while minimizing routing overhead.
+
+\textbf{Many Small Experts:} GShard (2048 experts) and DeepSeek-V3 (257 experts) employ numerous smaller experts, enabling fine-grained specialization at the cost of increased routing complexity.
+
+\subsection{Activation Density and Efficiency Trade-offs}
+
+Activation density—the percentage of parameters used per forward pass—critically impacts inference efficiency. Low activation density (0.78\% in Switch Transformer) maximizes parameter efficiency but requires sophisticated routing. Higher density (27.7\% in Mixtral-8x22B) simplifies deployment but reduces the efficiency gains from sparse activation.
+
+The relationship between expert count and activation density follows an inverse power law: doubling experts typically halves activation density, assuming constant active expert count. This trade-off fundamentally constrains MoE architecture design, balancing model capacity, inference speed, and memory requirements.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table*}[t]
+\centering
+\begin{tabularx}{\linewidth}{@{}lXXXXX@{}}
+\toprule
+\textbf{Model} & \textbf{Experts} & \textbf{Routing} & \textbf{Expert Size} & \textbf{Activation Density} & \textbf{Total Parameters} \\
+\midrule
+\multicolumn{6}{l}{\textit{Early MoE Models}} \\
+Switch Transformer & 128 & top-1 & 6.3MB & 0.78\% & 1.6T \\
+GShard & 2048 & top-2 & 293MB & 0.10\% & 600B \\
+GLaM-64B & 64 & top-2 & 1GB & 3.13\% & 1.2T \\
+ST-MoE-32B & 32 & top-2 & 8.4GB & 6.25\% & 269B \\
+\midrule
+\multicolumn{6}{l}{\textit{Mixtral Family (Mistral AI)}} \\
+Mixtral-8x7B & 8 & top-2 & 6.45GB & 27.6\% & 46.7B \\
+Mixtral-8x22B & 8 & top-2 & 19.5GB & 27.7\% & 141B \\
+\midrule
+\multicolumn{6}{l}{\textit{DeepSeek Models}} \\
+DeepSeekMoE-16B & 65 (1+64) & top-6 & 29MB & 17.1\% & 16.4B \\
+DeepSeekMoE-145B & 132 (4+128) & top-12 & 1.1GB & 15.4\% & 144.6B \\
+DeepSeek-V2 & 162 (2+160) & top-6 & 1.46GB & 8.9\% & 236B \\
+DeepSeek-V3 & 257 (1+256) & top-8 & 2.61GB & 5.5\% & 671B \\
+\midrule
+\multicolumn{6}{l}{\textit{Industry Models}} \\
+Snowflake Arctic & 128 & top-2 & 3.66GB & 3.5\% & 480B \\
+Grok-1 (xAI) & 8 & top-2 & 38.25GB & 25.0\% & 314B \\
+Qwen1.5-MoE-A2.7B & 64 (4+60) & top-4 & 386MB & 12.5\% & 14.3B \\
+PaLM-540B MoE & 32 & top-2 & 13GB & 6.25\% & 540B \\
+\midrule
+\multicolumn{6}{l}{\textit{Specialized MoE Models}} \\
+NLLB-MoE (Meta) & 128 & top-2 & 421MB & 25.0\% & 54B \\
+Jamba (AI21) & 16 & top-2 & 3.25GB & 23.0\% & 52B \\
+ERNIE 4.5 (Baidu) & 64 & top-2 & 6.6GB & 11.0\% & 424B \\
+OpenMoE-8B & 32 & top-2 & 250MB & 6.25\% & 8B \\
+\bottomrule
+\end{tabularx}
+\caption{Comprehensive Comparison of Mixture of Experts Model Architectures}
+\label{tab:moe_models_comprehensive}
+\end{table*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Memory and Computational Requirements}
+
+The memory footprint of MoE models presents unique deployment challenges. While only a fraction of parameters are active during inference, the entire model must reside in memory. For instance, Mixtral-8x7B requires approximately 87GB of VRAM despite activating only 12.9B parameters, as all 46.7B parameters must be accessible for routing decisions.
+
+This memory-computation asymmetry fundamentally distinguishes MoE from dense models: they offer superior compute efficiency (FLOPs per token) but require substantially more memory per active parameter. Recent architectures like DeepSeek-V3 push this trade-off to extremes, achieving 5.5\% activation density—processing each token with just 37B of 671B total parameters.
+
+\subsection{Evolution and Future Directions}
+
+The progression from Switch Transformer's 1.6T parameters with 0.78\% activation to DeepSeek-V3's 671B parameters with 5.5\% activation reveals an industry shift toward more practical deployment scenarios. Modern architectures increasingly favor:
+
+\begin{itemize}
+\item \textbf{Moderate expert counts} (8-256) over extreme scaling (2048 experts in GShard)
+\item \textbf{Shared expert baselines} ensuring consistent performance across all inputs
+\item \textbf{Higher routing degrees} (top-4 to top-12) for improved load balancing
+\item \textbf{Adaptive routing mechanisms} that adjust computation based on input complexity
+\end{itemize}
+
+These trends suggest MoE architectures are maturing from research curiosities to production-ready systems, balancing theoretical efficiency gains with practical deployment constraints.

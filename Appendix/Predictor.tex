@@ -1,0 +1,191 @@
+\section{Neural Expert Predictor: Detailed Technical Design}
+\label{app:predictor}
+
+This appendix provides comprehensive technical details of our neural expert predictor architecture, extending the overview presented in \Cref{sec:design} with implementation specifics, theoretical foundations, and design rationale.
+
+\subsection{Theoretical Foundations and Design Rationale}
+\label{subsec:theoretical_foundations}
+
+\subsubsection{Information-Theoretic Motivation}
+
+The design of our neural predictor is grounded in the information-theoretic analysis presented in \Cref{sec:background}, which revealed that expert routing contains exploitable temporal structure. Specifically, our mutual information analysis demonstrates that routing patterns exhibit $I(E_{\ell+h}; E_{\ell-c+1:\ell}) = 0.6217$ bits of mutual information between future expert selections and historical routing context, representing 8.9\% of the theoretical maximum entropy and providing 54\% uncertainty reduction compared to random prediction.
+
+This finding suggests that expert routing is neither completely random nor fully deterministic, but contains sufficient structure to enable meaningful prediction. The exponential decay of mutual information with increasing prediction horizon $h$ (following $I(h) \approx I_0 \cdot e^{-\lambda h}$ with decay constant $\lambda = 0.23$) provides theoretical bounds on prediction accuracy and guides our horizon selection strategy.
+
+\subsubsection{Cross-Layer Routing Dependencies}
+
+Our analysis of routing traces reveals hierarchical patterns in expert specialization that motivate the predictor architecture. Early transformer layers (layers 1-6) exhibit routing based primarily on syntactic features: part-of-speech tags, grammatical structure, and surface-level linguistic patterns. Middle layers (layers 7-15) show increasing semantic specialization, with experts focusing on entity types, conceptual categories, and basic relationships. Deep layers (layers 16+) demonstrate complex semantic routing based on discourse structure, pragmatic understanding, and task-specific reasoning.
+
+These hierarchical patterns create predictable routing transitions that our neural predictor can exploit. For instance, in summarization tasks, tokens representing numerical quantities often route to syntactic experts in early layers (Expert-42 for numbers), then to semantic experts in middle layers (Expert-78 for statistical concepts), and finally to task-specific experts in deep layers (Expert-134 for performance metrics). The predictor learns to model these progression patterns through its cross-layer attention mechanism.
+
+\subsection{Detailed Architecture Specification}
+\label{subsec:architecture_details}
+
+\subsubsection{Model Architecture Parameters}
+
+Our neural predictor employs a carefully optimized dense transformer architecture with the following specifications:
+
+\begin{itemize}
+\item \textbf{Model Dimensions:} $d_{\text{model}} = 320$, chosen to balance representational capacity with computational efficiency. This dimension provides sufficient capacity to encode expert embeddings, layer position information, and hidden state projections while keeping the model lightweight relative to the main MoE inference.
+
+\item \textbf{Transformer Layers:} 3 transformer layers, determined through ablation studies showing diminishing returns beyond 6 layers for the routing prediction task. Fewer layers ($< 3$) show reduced accuracy on complex routing patterns, while more layers (8-12) increase computational overhead without meaningful accuracy improvements.
+
+\item \textbf{Attention Configuration:} 10 attention heads with $d_{\text{head}} = 32$, enabling diverse routing dependency patterns to be captured across different representational subspaces. The multi-head design allows specialization: some heads focus on short-term layer-to-layer transitions, others capture long-range dependencies, and specialized heads learn task-specific routing patterns.
+
+\item \textbf{Feed-Forward Networks:} $d_{ff} = 1280$ ($4\times$ model dimension), following standard transformer scaling. The feed-forward layers enable non-linear combination of attention outputs and provide the capacity for complex routing pattern recognition.
+
+\item \textbf{Parameter Count:} Total of 8.4M parameters distributed as follows: expert embeddings ($40.96K \times N_E$), position embeddings ($14.08K \times N_L$), transformer layers (7.2M), and prediction head (320K). This represents approximately 0.1--0.2\% of the parameters in typical billion-parameter MoE models.
+\end{itemize}
+
+\subsubsection{Input Representation and Embedding Strategy}
+
+The predictor processes three distinct input modalities through specialized embedding strategies:
+
+\paragraph{Expert Identity Embeddings} Expert identifiers are embedded through learned matrices $\mathbf{W}_E \in \mathbb{R}^{N_E \times d_{\text{model}}}$ where $N_E$ varies by architecture: 128 for Switch Transformer, 64 for Qwen1.5 MoE, and 256 for Qwen3 MoE. Each expert receives a unique 320-dimensional embedding initialized using Xavier uniform initialization scaled by $\sqrt{2/d_{\text{model}}}$.
+
+The expert embedding strategy differs from traditional token embeddings in several key aspects: (1) Expert IDs represent categorical selections from routing decisions rather than sequential tokens, requiring different initialization strategies. (2) Expert embeddings must capture semantic similarity between functionally related experts, necessitating learning of expert clustering patterns. (3) The embedding space must be sufficiently expressive to distinguish between hundreds of experts while remaining computationally tractable.
+
+\paragraph{Layer Position Encoding} Layer positions are encoded through learned embeddings $\mathbf{W}_L \in \mathbb{R}^{N_L \times d_{\text{model}}}$ where $N_L$ represents the maximum number of MoE layers in the target architecture. Unlike sinusoidal position encodings used for token sequences, layer positions require learned embeddings because: (1) The hierarchical nature of transformer processing creates non-uniform relationships between layer positions, (2) Different MoE architectures have varying numbers of layers with different routing characteristics, and (3) Layer-specific routing patterns must be learned from data rather than assumed to follow periodic structures.
+
+The layer embeddings enable the model to understand that routing decisions at layer 4 have different semantic implications than identical routing decisions at layer 18. This positional awareness is crucial for accurate prediction, as our analysis shows that the same expert selection can have completely different meanings depending on the layer depth.
+
+\paragraph{Hidden State Integration} Current hidden states $H_t^{(\ell)} \in \mathbb{R}^{d_{\text{model}}}$ from the MoE model are integrated through a learned linear projection $\mathbf{W}_H \in \mathbb{R}^{d_{\text{model}} \times d_{\text{model}}}$ that maps the MoE hidden dimension to the predictor dimension. This projection serves multiple purposes: (1) Dimensional alignment between potentially different model architectures, (2) Feature selection to extract routing-relevant information from high-dimensional hidden states, and (3) Learned transformation that emphasizes routing-predictive features while de-emphasizing irrelevant information.
+
+\subsubsection{Cross-Layer Attention Mechanism}
+
+A key architectural innovation is our cross-layer attention mechanism that explicitly models dependencies between routing decisions across different transformer layers. Standard self-attention in transformers operates within sequences of tokens; our cross-layer attention operates across sequences of layers, capturing the hierarchical routing progression inherent in MoE architectures.
+
+The cross-layer attention mechanism processes the concatenated input representation:
+\begin{align}
+\mathbf{X}_t = \text{Concat}(&[\mathbf{W}_E[e_t^{(\ell-c+1)}] + \mathbf{W}_L[\ell-c+1], \ldots, \\
+&\mathbf{W}_E[e_t^{(\ell)}] + \mathbf{W}_L[\ell], \mathbf{W}_H \cdot H_t^{(\ell)}])
+\end{align}
+
+The attention mechanism computes weighted combinations of routing history based on predictive relevance:
+\begin{align}
+\text{CrossLayerAttn}(\mathbf{X}_t) &= \text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) \\
+&= \text{softmax}\left(\frac{\mathbf{Q}\mathbf{K}^T}{\sqrt{d_{\text{head}}}}\right)\mathbf{V}
+\end{align}
+
+where $\mathbf{Q}$, $\mathbf{K}$, and $\mathbf{V}$ are query, key, and value matrices derived from $\mathbf{X}_t$. This mechanism enables the predictor to learn that routing patterns from certain layers are more predictive for future expert selections than others.
+
+\subsection{Training Methodology and Data Engineering}
+\label{subsec:training_methodology}
+
+\subsubsection{Dataset Construction and Trace Collection}
+
+Training data consists of expert routing traces collected from pre-trained MoE models processing diverse linguistic tasks. Our dataset construction methodology ensures robust generalization across different domains and routing patterns:
+
+\paragraph{Dataset Diversity} We collect traces from three complementary datasets: (1) Natural Questions (334k traces) for factual question-answering, demonstrating structured reasoning patterns with predictable expert transitions, (2) IMDB movie reviews (125k traces) for sentiment analysis, capturing emotional and stylistic routing patterns with subjective expert selections, and (3) CNN/DailyMail (89k traces) for abstractive summarization, exhibiting complex semantic progressions from content understanding to generation.
+
+\paragraph{Trace Collection Protocol} For each input sequence, we record: expert selections $E_t^{(\ell)}$ at every MoE layer $\ell$ for each token position $t$, hidden states $H_t^{(\ell)}$ immediately before routing decisions, attention masks and token position metadata, routing confidence scores from the original routers, and timing information for expert loading and execution.
+
+\paragraph{Data Quality Assurance} Collected traces undergo quality filtering to remove: sequences shorter than 10 tokens (insufficient context for pattern learning), sequences with excessive routing failures or timeouts, traces with corrupted expert selections or missing hidden states, and outlier sequences with routing patterns more than 3 standard deviations from the mean.
+
+\subsubsection{Training Objective and Loss Function Design}
+
+Our composite loss function balances multiple training objectives to produce well-calibrated predictions suitable for production deployment:
+
+\paragraph{Primary Classification Loss} The cross-entropy loss optimizes expert prediction accuracy:
+\begin{align}
+\mathcal{L}_{\text{classification}} = -\sum_{i=1}^{N} \log P(e_i^{\text{true}} | \mathcal{H}_i; \theta)
+\end{align}
+where $N$ is the number of training examples, $e_i^{\text{true}}$ is the ground-truth expert selection, and $P(\cdot | \mathcal{H}_i; \theta)$ represents the predicted probability distribution.
+
+\paragraph{Ranking Consistency Loss} The ranking loss ensures proper ordering of expert selection probabilities:
+\begin{align}
+\mathcal{L}_{\text{ranking}} = \sum_{i=1}^{N} \sum_{j \neq e_i^{\text{true}}} \max(0, margin - \log P(e_i^{\text{true}} | \mathcal{H}_i) + \log P(j | \mathcal{H}_i))
+\end{align}
+with margin $= 0.1$. This loss encourages the model to not only predict the correct expert but also maintain meaningful probability rankings for alternative experts, which is crucial for confidence estimation.
+
+\paragraph{Confidence Calibration Loss} The Brier score ensures prediction confidence correlates with actual accuracy:
+\begin{align}
+\mathcal{L}_{\text{confidence}} = \sum_{i=1}^{N} (P(e_i^{\text{true}} | \mathcal{H}_i) - \mathbb m{1}_{e_i^{\text{true}}})^2
+\end{align}
+where $\mathbb m{1}_{e_i^{\text{true}}}$ is the indicator function. Well-calibrated confidence scores enable dynamic prefetching strategies that adapt resource allocation based on prediction certainty.
+
+\subsubsection{Hyperparameter Optimization and Training Protocol}
+
+\paragraph{Architecture Hyperparameters} Context window size $c$ was determined through systematic evaluation over $c \in \{1, 2, 3, 4, 5\}$, revealing optimal performance at $c = 3$ layers. Shorter contexts ($c < 3$) lack sufficient routing history for pattern recognition, while longer contexts ($c > 3$) introduce noise and computational overhead without accuracy improvements.
+
+Prediction horizon $h$ was optimized across $h \in \{1, 2, 3, 4, 5, 6\}$ with different optima for different architectures: $h = 2$ for Switch Transformer (88.5\% accuracy), $h = 3$ for Qwen1.5 MoE (85\% accuracy), and $h = 3$ for Qwen3 MoE (82\% accuracy). These architecture-specific optima reflect different routing complexity and information retention characteristics.
+
+\paragraph{Training Configuration} We employ AdamW optimization with learning rate $\eta = 2 \times 10^{-4}$, $\beta_1 = 0.9$, $\beta_2 = 0.999$, weight decay $\lambda = 0.01$, and gradient clipping at norm 1.0. The learning rate schedule combines linear warmup over 500 steps (approximately 3\% of total training) followed by cosine annealing to $10^{-6}$.
+
+Training proceeds for 15,000 steps with batch size 128, requiring 3.5-4.2 hours on NVIDIA A100 GPUs depending on the target MoE architecture. Loss weights are set to $\lambda_1 = 1.0$ (classification), $\lambda_2 = 0.3$ (ranking), and $\lambda_3 = 0.1$ (confidence) based on validation performance across multiple architectures.
+
+\subsection{Prediction Horizon Analysis and Architecture-Specific Optimization}
+\label{subsec:horizon_analysis}
+
+\subsubsection{Information Decay and Horizon Selection}
+
+Our analysis reveals that prediction accuracy follows an exponential decay pattern with increasing prediction horizon, consistent with information-theoretic expectations. \Cref{fig:predictor_accuracy,fig:qwen15_prediction_accuracy,fig:qwen3_prediction_accuracy} demonstrate this decay across all evaluated architectures.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figs/qwen15_prediction_accuracy.pdf}
+\caption{Predictor accuracy vs batch size for Switch transformer against the state-of-the-art. We observe a rapid decline is the accuracy beyond the prediction horizon, h = 3.}
+\label{fig:qwen15_prediction_accuracy}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figs/qwen3_prediction_accuracy.pdf}
+\caption{Predictor accuracy vs batch size for Switch transformer against the state-of-the-art. We observe a rapid decline is the accuracy beyond the prediction horizon, h = 3.}
+\label{fig:qwen3_prediction_accuracy}
+\end{figure}
+
+For Switch Transformer, accuracy decreases from 90\% at $h=1$ to 88.5\% at $h=2$, then exhibits steeper decline beyond $h=3$, reaching 20\% at $h=10$. The relatively flat region from $h=1$ to $h=3$ suggests that temporal correlations in Switch Transformer routing remain strong across 3 layers, likely due to the sparse top-1 expert selection creating strong routing consistency.
+
+Qwen MoE architectures show different patterns: both Qwen1.5 and Qwen3 exhibit optimal performance at $h=3$ (85\% and 82\% respectively) with more gradual initial decay than Switch Transformer. This difference stems from their dense top-k routing ($k=4$ for Qwen1.5, $k=8$ for Qwen3) which creates more complex routing patterns that require longer context windows for accurate prediction but provide more stable prediction accuracy across moderate horizons.
+
+\subsubsection{Architecture-Specific Design Adaptations}
+
+\paragraph{Switch Transformer Adaptations} Switch Transformer's sparse top-1 routing creates unique challenges and opportunities: (1) High prediction accuracy is achievable due to deterministic single-expert selection, but (2) Prediction errors have severe consequences since only one expert is selected per token. Our predictor addresses this through aggressive confidence thresholding, only prefetching when confidence exceeds 80\%.
+
+\paragraph{Qwen MoE Adaptations} Dense routing in Qwen architectures (top-4 and top-8 selection) requires different prediction strategies: (1) Top-k prediction instead of single expert prediction, providing multiple prefetching candidates, (2) Weighted prefetching based on predicted routing probabilities, and (3) Shared expert handling for experts that process every token regardless of routing decisions.
+
+\subsubsection{Confidence Calibration and Dynamic Prefetching}
+
+The predictor outputs calibrated confidence scores alongside expert predictions, enabling dynamic prefetching strategies. Confidence calibration is achieved through the Brier score component of our loss function and validated through reliability diagrams showing strong correlation between predicted confidence and actual accuracy.
+
+High-confidence predictions ($> 0.8$) trigger immediate prefetching to L1 cache for sub-millisecond access, medium-confidence predictions (0.5-0.8) initiate L2 cache prefetching for moderate latency access, and low-confidence predictions either prefetch to L3 cache or are deferred based on available memory bandwidth.
+
+This confidence-driven approach ensures optimal resource allocation: limited prefetching bandwidth is reserved for predictions most likely to be correct, maximizing cache hit rates while minimizing waste on incorrect predictions.
+
+\subsection{Computational Efficiency and Production Deployment}
+\label{subsec:computational_efficiency}
+
+\subsubsection{Inference Overhead Analysis}
+
+The neural predictor introduces minimal computational overhead relative to MoE inference. With 8.4M parameters compared to 1.6B+ parameters in typical MoE models (0.5\% parameter overhead), prediction requires 0.8-1.2ms compared to 15-50ms for MoE forward passes (2-8\% latency overhead). Memory overhead is similarly minimal: 67MB for predictor weights compared to 3.2-12.8GB for MoE parameters (0.5-2\% memory overhead).
+
+\subsubsection{Scalability and Deployment Considerations}
+
+The predictor architecture scales efficiently across different MoE configurations through: (1) Modular embedding matrices that adapt to different expert vocabulary sizes, (2) Architecture-agnostic hidden state projection layers, and (3) Configurable context windows and prediction horizons optimized per deployment scenario.
+
+Production deployment involves loading predictor checkpoints alongside MoE models, minimal memory allocation for inference state, and integration with existing MoE serving infrastructure through standardized APIs. The predictor runs asynchronously with MoE inference, enabling pipelined execution where predictions for layer $\ell+h$ are computed while processing layer $\ell$.
+
+
+
+\begin{table}[t]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuration} & \textbf{Switch-T} & \textbf{Qwen} \\
+\midrule
+Model Parameters & 8.4M & 8.4M \\
+Context Window ($c$) & 3 layers & 3 layers \\
+Prediction Horizon ($h$) & 3 layers & 3 layers \\
+Training Time & 3.5 hours & 4.2 hours \\
+\midrule
+Accuracy & 86.42\% & 81.35\% \\
+Random Baseline & 0.78\% & 1.56\% \\
+Improvement Factor & $110.79\times$ & $52.14\times$ \\
+\midrule
+Inference Latency & 0.15ms & 0.18ms \\
+Memory Overhead & 0.32\% & 0.06\% \\
+\bottomrule
+\end{tabular}
+\caption{Neural predictor performance across architectures.}
+\label{tab:predictor-performance}
+\end{table}

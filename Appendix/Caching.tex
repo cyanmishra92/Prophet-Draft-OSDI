@@ -1,0 +1,54 @@
+\section{Memory Management and Caching}
+\label{app:memoryCaching}
+
+\begin{algorithm}[h!]
+\caption{Batch-Aware Expert Deduplication}
+\label{alg:deduplication}
+\begin{algorithmic}[1]
+\Require Batch $\mathcal{B} = \{R_1, \ldots, R_B\}$, $R_i$ = experts for item $i$
+\Ensure Unique set $\mathcal{U}$, schedule $\mathcal{S}$
+\State $\mathcal{U} \gets \emptyset$; $\mathcal{F} \gets \{\}$ \Comment{Init unique set, freq map}
+\For{each request $R_i \in \mathcal{B}$}
+    \For{each expert $e \in R_i$}
+        \State $\mathcal{U} \gets \mathcal{U} \cup \{e\}$
+        \State $\mathcal{F}[e] \gets \mathcal{F}[e] + 1$
+    \EndFor
+\EndFor
+\State Sort $\mathcal{U}$ by frequency $\mathcal{F}$ descending
+\State $\mathcal{S} \gets$ ComputeOptimalSchedule($\mathcal{U}$, $\mathcal{F}$)
+\State \Return $\mathcal{U}$, $\mathcal{S}$
+\end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Hardware-Aware Transfer Optimization}
+The two-level cache design enables sophisticated transfer optimization that hides PCIe latency behind computation. When high-confidence predictions identify experts currently in L2  cache, the system initiates asynchronous PCIe transfers to promote these experts to L1 cache while the current layer continues computation. This reduces effective loading latency by overlapping memory transfers with useful computation
+:
+%\begin{equation}
+$T_{\text{effective}} = \max(T_{\text{compute}}, T_{\text{PCIe\_transfer}}) + T_{\text{GPU\_access}}$
+%\end{equation}
+where $T_{\text{GPU\_access}} \ll T_{\text{PCIe\_transfer}}$, 
+enabling near-zero effective latency when transfers complete before expert usage.
+The transfer scheduler incorporates PCIe bandwidth constraints and GPU memory pressure to optimize transfer ordering. High-confidence predictions receive priority for immediate transfer, while medium-confidence predictions are queued based on available bandwidth. The scheduler dynamically adjusts the confidence threshold for GPU cache placement based on current cache occupancy and predicted expert usage patterns, ensuring optimal resource utilization under varying workload conditions.
+
+\subsection{Cache Performance Characteristics}
+
+The two-level cache design achieves superior hit rates compared to traditional single-tier approaches by exploiting the natural memory hierarchy. L1 GPU cache hit rates of 85-90\% ensure that the majority of expert accesses incur minimal latency, while L2 host cache hit rates of 95-99\% provide comprehensive coverage for the remaining expert requests. The combined system achieves overall hit rates of 99.4\% under iso-cache constraints, representing significant improvements over baseline LRU caching (65-80\% hit rates).
+
+Cache performance scales favorably with batch size due to the expert deduplication benefits identified earlier. Larger batches increase the probability that multiple tokens will request the same experts, improving effective cache utilization and reducing the pressure on both cache tiers. The power-law popularity distribution ensures that frequently accessed experts remain resident in L1 GPU cache across multiple batches, while less common experts benefit from L2 host cache coverage.
+
+\subsection{Integration with Neural Prediction and Batch Optimization}
+The two-level cache seamlessly integrates with the neural predictor and batch deduplication components to form a cohesive expert prefetching system. Prediction confidence scores directly drive cache placement decisions, ensuring that GPU memory is reserved for the most reliable predictions while host memory provides speculative coverage. Batch deduplication reduces the total number of unique experts that must be managed across both cache levels, improving effective cache capacity and reducing transfer overhead.
+The cache system adapts automatically to different MoE architectures by adjusting confidence thresholds and promotion criteria. Sparse routing models (Switch Transformer) benefit from aggressive L1 caching of high-confidence predictions due to lower expert diversity per batch, while dense routing models (Qwen MoE) leverage L2 cache more extensively to accommodate the larger set of potentially required experts. 
+%This architectural adaptation ensures optimal performance across diverse MoE configurations without manual tuning.
+
+\subsection{Formalization of Promotion Mechanism}
+The promotion mechanism operates according to:
+\begin{equation}
+\begin{aligned}
+\text{Promote}(e, L_2^{\text{Host}} \to L_1^{\text{GPU}}) \\
+\text{if} \quad \mathcal{C}[e] > \theta_{\text{promote}} 
+   \ \text{or } \text{AccessFreq}(e) > \theta_{\text{freq}}
+\end{aligned}
+\end{equation}
+where $\theta_{\text{promote}} = 0.8$ ensures high-confidence predictions trigger immediate promotion, and $\theta_{\text{freq}}$ captures experts that demonstrate sustained usage patterns even with lower individual prediction confidence.
