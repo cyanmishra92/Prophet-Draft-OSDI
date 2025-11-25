@@ -4,16 +4,5 @@
 
 % Text matter begin
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
-% This paper addresses the critical memory bandwidth bottleneck that has limited the practical deployment of Mixture-of-Experts models despite their
-%   computational efficiency advantages. Through comprehensive analysis of expert routing patterns, we identified exploitable structure that enables accurate
-%   neural prediction of future expert requirements. Prophet leverages these insights through an integrated system combining neural prediction, batch-aware
-%   optimization, and hierarchical caching to transform MoE inference from reactive to predictive memory management.
-%   Our evaluation across diverse MoE architectures demonstrates that Prophet delivers substantial performance improvements—$2\times$ to $15\times$ speedups over
-%   reactive approaches and consistent gains over state-of-the-art prefetching systems—while operating as a plug-and-play solution requiring no model
-%   modifications. By addressing the fundamental I/O bottleneck that dominates MoE inference time, Prophet enables practical deployment of trillion-parameter
-%   models across diverse hardware environments, from resource-constrained edge devices to high-throughput.  
-%   Looking forward, the principles underlying Prophet—exploiting learned routing patterns through neural prediction and systematic memory hierarchy
-%   optimization—suggest broader applications to emerging sparse model architectures. As MoE models continue scaling in both parameter count and architectural
-%   complexity, predictive memory management will become increasingly critical for realizing their deployment potential in production environments.
 In this work, we addressed the fundamental memory bandwidth bottleneck that constrains the practical deployment of Mixture-of-Experts (MoE) models. By analyzing expert routing patterns, we revealed an exploitable structure that enables accurate neural prediction of future expert requirements.  Building on these insights, \emph{Prophet} combines prediction, batch-aware optimization, and hierarchical caching to transform MoE inference from reactive to predictive memory management.  Our evaluation demonstrates $1.5\times$--$3.2\times$ performance speedups and $1.5\times$--$15\times$ memory improvements over prefetching systems, all without requiring model modifications.  These results indicate that predictive memory management removes the dominant I/O barrier, making trillion-parameter MoE models viable across a wide range of hardware environments. Looking ahead, the principles underlying \emph{Prophet}—leveraging learned routing patterns and systematic memory hierarchy optimization—hold promise for broader classes of sparse architectures, where scalability and deployment efficiency will be increasingly critical.
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 

@@ -1,20 +1,3 @@
 Mixture-of-Experts (MoE) models enable trillion-parameter language models through sparse activation, but suffer from severe memory bandwidth bottlenecks, where expert loading dominates 78--96\% of the inference time. Current reactive approaches fail to exploit the inherent structure in expert routing patterns, leading to I/O-to-compute ratios of up to $15\times$ that limit practical deployment.
 
 This paper introduces \textit{Prophet}, a neural expert prefetching system that transforms MoE inference through predictive memory management. Prophet employs a lightweight neural predictor to capture cross-layer routing dependencies, combined with batch-aware deduplication and hierarchical caching to optimize expert loading. Operating as a plug-and-play solution without model modifications, Prophet delivers $1.5\times$--$3.2\times$ performance speedups and $1.5\times$--$15\times$ memory improvements over state-of-the-art prefetching across diverse MoE architectures, enabling practical deployment of trillion-parameter models from edge to datacenter environments.
-
-% Mixture-of-Experts (MoE) models enable trillion-parameter language models through sparse activation, but suffer from severe memory bandwidth bottlenecks where
-%   expert loading dominates 87--95\% of inference time. Current reactive approaches fail to exploit the inherent structure in expert routing patterns, leading to
-%   I/O-to-compute ratios up to $15\times$ that severely limit practical deployment across diverse hardware environments.
-
-%   This paper introduces \textit{Prophet}, a comprehensive neural expert prefetching system that transforms MoE inference through predictive memory management.
-%   Through analysis of expert routing traces, we identify exploitable structures including power-law popularity distributions, temporal correlations, and
-%   cross-layer dependencies that enable accurate prediction of future expert requirements. Prophet employs a lightweight neural predictor with cross-layer
-%   attention to capture routing dependencies across transformer layers, achieving high prediction accuracy with minimal computational overhead.
-
-%   Prophet integrates three synergistic components: neural prediction for proactive expert loading, batch-aware deduplication exploiting sublinear scaling
-%   properties for substantial memory savings, and hierarchical caching with confidence-driven prefetching strategies. Operating as a plug-and-play solution
-%   without requiring model modifications, Prophet adapts automatically across sparse and dense routing strategies.
-
-%   Comprehensive evaluation demonstrates Prophet's effectiveness: $2\times$--$15\times$ speedups over reactive baselines and $1.8\times$--$4.2\times$ improvements
-%    over state-of-the-art prefetching systems across diverse MoE architectures, enabling practical deployment of trillion-parameter models from edge devices to
-%   data centers.

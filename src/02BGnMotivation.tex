@@ -76,41 +76,7 @@ Simply put, knowing the recent routing history makes future expert selections 54
 
 The temporal structure exhibits complex dependencies that vary across layers and input types. The early layers show stronger syntactic correlations with recent token history, focusing on surface-level patterns like part-of-speech and basic syntax. Deeper layers exhibit semantic dependencies that span longer contexts, capturing higher-level meaning and discourse structure~\cite{liu2024fantastic, rajbhandari2022deepspeed, zhang2024harder}. This layer-dependent specialization suggests that effective prediction models should account for the hierarchical nature of transformer processing, motivating prediction architectures that can capture dependencies across multiple layers simultaneously to leverage both syntactic and semantic routing patterns.
 
-% \begin{table}[t]
-% \centering
-% \resizebox{\linewidth}{!}{%
-% \begin{tabular}{l|c|c|c}
-% \hline
-% \textbf{Analysis Component} & \textbf{Key Metric} & \textbf{Value} & \textbf{Interpretation} \\
-% \hline
-% \multirow{3}{*}{Expert Clustering} 
-% & Optimal Clusters & 13 & Distinct expert specializations \\
-% & Silhouette Score & 0.284 & Good clustering quality \\
-% & Best Method & hierarchical & Algorithm selected \\
-% \hline
-% \multirow{4}{*}{Layer Specialization}
-% & Entropy Trend & $R^2 = 0.633$ & Decreasing complexity \\
-% & Concentration Trend & $R^2 = 0.279$ & Increasing focus \\
-% & Entropy Slope & -0.0149 & Specialization rate \\
-% & Concentration Slope & 0.0022 & Focus rate \\
-% \hline
-% \multirow{4}{*}{Semantic Structure}
-% & Strong Pairs & 50 & Semantic relationships \\
-% & Network Density & 0.9924 & Connection strength \\
-% & Avg Degree & 126.0 & Expert connectivity \\
-% & Max Degree & 127 & Hub experts \\
-% \hline
-% \end{tabular}%
-% }
-% \caption{Spatial clustering and semantic structure analysis revealing expert organization patterns. Expert clustering identifies 13 distinct specialization groups with good separation. Layer-wise analysis shows decreasing entropy and increasing concentration, confirming progressive specialization in deeper layers.}
-% \label{tab:clustering_analysis}
-% \end{table}
 
-% \subsection{Spatial Clustering and Semantic Structure}
-% Expert clustering analysis identifies 13 distinct semantic clusters across 128 experts with good separation (silhouette score 0.284).
-% \todo{put a clustering figure}
-% %, as detailed in \Cref{tab:clustering_analysis}. 
-% Cross-layer analysis reveals systematic expert specialization with decreasing entropy ($R^2 = 0.633$) and increasing concentration ($R^2 = 0.279$) as layer depth increases. The presence of 50 strong expert pair relationships indicates the semantic structure that prediction models can exploit. These findings demonstrate that experts are organized into semantic clusters with layer-dependent specialization patterns, enabling cluster-aware prediction models to exploit relationships for improved accuracy. Spatial clustering provides complementary information to temporal patterns, as experts within the same cluster often exhibit correlated activation patterns that persist across different input sequences, creating additional predictive signals beyond simple temporal dependencies. 
 
 \subsection{Design Requirements and Path Forward}
 Current approaches face fundamental limitations preventing comprehensive MoE optimization, encountering critical trade-offs between prediction accuracy and computational overhead while optimizing individual bottlenecks in isolation rather than addressing the coupled nature of memory bandwidth, computational efficiency, and prediction accuracy. The convergence of power-law popularity, mutual information and temporal correlations, 
