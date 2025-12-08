@@ -5,7 +5,7 @@
 % Text matter begin
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
 
-\subsection{MoE Fundamentals and Current Bottlenecks}
+\subsection{Current Bottlenecks in MoE}
 LLMs, are built from layers of transformer  (\Cref{fig:moe_architecture}(a)), each consisting of an attention mechanism (with linear projections), normalization layers, and a position-wise feedforward network, all connected by residual pathways. Classically, the feedforward network of a transformer block, in most LLM architectures, is a dense MLP block (\Cref{fig:moe_architecture}(b)). In contrast, MoE models modify this design (depicted in \Cref{fig:moe_architecture}(c),(d)) by replacing the monolithic feedforward MLP with a large set of expert networks and a learned router that activates only a sparse subset of them for each token, thereby increasing model capacity without a proportional increase in computational cost. 
 Consequently, for an input token $\mathbf{x}^{(l)}$ at layer $l$, the router computes the expert selection probabilities through $G^{(l)}(\mathbf{x}^{(l)}) = \text{softmax}(\mathbf{W}_g^{(l)} \cdot \mathbf{x}^{(l)} + \mathbf{b}_g^{(l)})$, where $\mathbf{W}_g^{(l)}$ and $\mathbf{b}_g^{(l)}$ are learnable parameters. The routing network essentially learns which experts are most relevant for each input token based on its learned representations. The routing mechanism selects the top-$k$ experts with highest probabilities, forming $\mathcal{S}_{\text{selected}} = \text{top-k}(G^{(l)}(\mathbf{x}^{(l)}))$. The final output combines the outputs of selected experts weighted by their gating scores: $\mathbf{y}^{(l)} = \sum_{i \in \mathcal{S}_{\text{selected}}} G^{(l)}_i(\mathbf{x}^{(l)}) \cdot E_i^{(l)}(\mathbf{x}^{(l)})$, where each expert network $E_i^{(l)}$ processes tokens within its specialized domain, and the weighted combination dynamically blends the outputs of experts based on their relevance.
 
@@ -43,13 +43,13 @@ To rigorously establish the feasibility of intelligent expert pre-fetching, we c
   \label{fig:power_law}
 \end{figure*}
 
-\begin{figure}[h!]
-  \centering
-  \includegraphics[width=0.9\linewidth]{figs/information_budget_topk.pdf}
-  \vspace{-10pt}
-  \caption{Information budget analysis for expert prediction. Maximum entropy for 128 experts is 7.00 bits. Total available mutual information is 4.11 bits (59\% of maximum), decomposed into: expert context from 3 preceding layers (2.59 bits), hidden states (0.76 bits), and attention patterns (0.75 bits). This 4.11 bits is sufficient for 70--80\% prediction coverage with top-8/16 expert selection.}
-  \label{fig:information_budget}
-\end{figure}
+% \begin{figure}[h!]
+%   \centering
+%   \includegraphics[width=0.9\linewidth]{figs/information_budget_topk.pdf}
+%   \vspace{-10pt}
+%   \caption{Information budget analysis for expert prediction. Maximum entropy for 128 experts is 7.00 bits. Total available mutual information is 4.11 bits (59\% of maximum), decomposed into: expert context from 3 preceding layers (2.59 bits), hidden states (0.76 bits), and attention patterns (0.75 bits). This 4.11 bits is sufficient for 70--80\% prediction coverage with top-8/16 expert selection.}
+%   \label{fig:information_budget}
+% \end{figure}
 
 % \begin{figure}[h!]
 %   \centering
@@ -60,11 +60,10 @@ To rigorously establish the feasibility of intelligent expert pre-fetching, we c
 % \end{figure}
   
 
-\subsection{Heavy-Tailed Expert Popularity Distribution}
+\subsection{Expert Popularity Distribution}
 To assess whether experts exhibit "hot" and "cold" behavior across layers, we conducted a power-law analysis on ranked expert usage~\cite{ghorbani2022scaling}. Specifically, we ranked experts by selection frequency and applied maximum-likelihood estimation to fit a power-law model. We found that expert selection follows a robust power-law distribution with exponent $\alpha = 1.2$--$2.2$ across five MoE architectures as depicted in \Cref{fig:power_law}. Models with higher $\alpha$ (Qwen-30B: $\alpha=2.1$, GPT-OSS: $\alpha=2.2$) exhibit stronger concentration, while lower $\alpha$ (Qwen-2.7B, DeepSeek: $\alpha=1.2$) indicates more diverse expert usage. This heavy-tailed behavior results in extreme concentration: the top 20\% of experts account for up to 75\% of all routing decisions. {This is supported by the sweep study of unique number of experts activated for a token through all the layers of the Qwen 1.5 MoE for different batch sizes as depicted in \Cref{fig:batch_scaling_validation}. Here we observe that the unique number of experts activated (plotted along the y-axis) grows sub-linearly with the increase in batch size (x-axis is in log scale). 
 The power-law structure approximates sublinear scaling of the expected number of unique experts accessed as a function of batch size}
-motivating a batch-aware deduplication strategy that selects only unique experts and thereby reduces bandwidth requirements. We established this relation by fitting the empirical curve of unique experts versus batch size to a power-law model ($\mathbb{E}[U(B)] \sim C \cdot B^{0.932}$), and confirm its accuracy in \Cref{fig:batch_scaling_validation} showing
-significant deduplication opportunities, especially at higher batch sizes.
+motivating a batch-aware deduplication strategy that selects only unique experts and thereby reduces bandwidth requirements. We established this relation by fitting the empirical curve of unique experts versus batch size to a power-law model ($\mathbb{E}[U(B)] \sim C \cdot B^{0.932}$), and confirm its accuracy in showing significant deduplication opportunities, especially at higher batch sizes.
 
 These power-law properties enable universal, layer independent predictive prefetching strategies that achieve high hit rates by targeting consistently popular experts, irrespective of workload variation. Crucially, however, simple frequency-based methods fall short: due to temporal fluctuations and layer-specific specialization in expert popularity, naive ranking yields only ~12.3\% prediction accuracy, underscoring the need for more sophisticated neural modeling.
 
