@@ -47,13 +47,15 @@ To address this, the paper introduces Prophet, a comprehensive neural expert pre
 \design makes the following {\bf contributions} to advance the state-of-the-art in MoE inference optimization: 
 %\textcolor{red}{validate the numbers and results}
 
-\noindent$\bullet$ \textbf{Cross-layer neural prediction:} The first system to systematically exploit dependencies between routing decisions across transformer layers, achieving 87\% prediction accuracy through novel dense transformer architecture with layer encoding.
+\noindent$\bullet$ \textbf{Information-theoretic framework:} The first principled analysis quantifying expert routing predictability through mutual information (0.62 bits, 54\% uncertainty reduction) and power-law distributions ($\alpha = 1.2$--$2.2$), establishing theoretical bounds that guide predictor design choices.
+
+\noindent$\bullet$ \textbf{Cross-layer neural prediction:} A learned neural predictor that captures cross-layer routing dependencies, achieving 81--87\% prediction accuracy through dense transformer architecture with layer encoding---advancing beyond heuristic approaches used in prior work.
 
 \noindent$\bullet$ \textbf{Batch-aware expert deduplication:} Theoretical and empirical analysis of expert reuse patterns in batch processing, enabling up to 87.6\% memory savings through systematic exploitation of power-law popularity distributions with provable scaling guarantees.
 
 \noindent$\bullet$ \textbf{Hierarchical confidence-based caching:} Two-tier caching that maps prediction confidence to resource allocation, achieving 99.4\% hit rates under realistic memory constraints through sophisticated prefetching and replacement strategies.
 
-\noindent$\bullet$ \textbf{Comprehensive cross-architecture evaluation:} The first systematic comparison of expert loading optimization across sparse and dense routing strategies with extensive baseline comparisons, demonstrating $1.5\times$--$3.2\times$ performance speedups and $1.5\times$--$15\times$ memory improvements with respect to the state-of-the-art.
+\noindent$\bullet$ \textbf{Cross-architecture and cross-domain evaluation:} Comprehensive evaluation across five MoE architectures and six datasets, demonstrating $1.5\times$--$12.7\times$ performance speedups and robust cross-domain generalization where patterns learned from one dataset transfer to others.
 
 The remainder of this paper provides background on MoE architectures (\Cref{sec:background}), establishes theoretical foundations (\Cref{sec:Motivation}), details Prophet's system design and algorithms (\Cref{sec:design}), presents implementation and comprehensive experimental evaluation (\Cref{sec:implementation}), discusses related work in MoE optimization (\Cref{sec:related}), and concludes with implications for future MoE deployment (\Cref{sec:conclusion}).
 
