@@ -16,13 +16,13 @@ The temporal correlations and layer-wise specialization patterns identified in o
 
 
 %%%%%%%%%%%%
-\subsubsection{Problem Formalization and Architecture Overview}
+\subsubsection{Formalization and Architecture Overview}
 
 We formalize expert prediction as a sequence modeling task that predicts future expert selections for individual token positions based on historical routing  (the collected traces as described in \Cref{sec:Motivation}) and current hidden states. For a specific token at sequence position $t$ currently being processed at layer $\ell$, our goal is to predict which expert will be selected for this same token at a future layer $\ell+h$, where $h$ represents the prediction horizon.
 
 
 \noindent\textbf{Input Representation:} The predictor input $\mathcal{H}_t$ for token position $t$ comprises three components:
-$\mathcal{H}_t = \{E_t^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)},$\\$H_t^{(\ell)}\} $
+$\mathcal{H}_t = \{E_t^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)},$$H_t^{(\ell)}\} $
 % \begin{align}
 % \mathcal{H}_t &= \{E_t^{(\ell-c+1:\ell)}, L^{(\ell-c+1:\ell)}, H_t^{(\ell)}\} \label{eq:predictor_input}
 % \end{align}
@@ -60,7 +60,7 @@ at layer $\ell$, we generate predictions for all tokens in the same positions si
 This formalization enables systematic optimization of expert prefetching through neural sequence modeling while maintaining compatibility with existing pre-trained MoE models and providing theoretical guarantees on prediction performance through the information-theoretic bounds established in \Cref{sec:Motivation}.
 %%%%%%%%%%%%
 
-\subsubsection{Neural Predictor Architecture and Training Strategy}
+\subsubsection{Neural Predictor Architecture and Training}
 Building on the problem formalization above, we now detail the neural predictor architecture and training methodology that realizes the expert prediction framework. Our predictor employs a dense transformer architecture specifically optimized for cross-layer routing prediction, avoiding the recursive complexity of using MoE models to predict MoE routing while enabling sophisticated pattern learning through multi-head self-attention mechanisms.
 
 \noindent\textbf{Architecture Specification:} The predictor comprises 3 transformer layers with 10 attention heads each, utilizing model dimension $d_{\text{model}} = 320$ and feed-forward dimension $d_{ff} = 1280$. 
