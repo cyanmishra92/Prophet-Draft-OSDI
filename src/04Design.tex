@@ -92,23 +92,23 @@ Through systematic hyperparameter exploration across context windows $c \in \{1,
 Most importantly, \Cref{fig:predictor_accuracy} shows that our predictor model is more accurate in predicting the experts for future layers compared to state-of-the-art models (ProMoe~\cite{promoe} and PreGated MoE~\cite{pregated}).  
 %Additional details, of the pre-fetching model along with the model parameters, are given in \Cref{app:predictor}.
 
-\subsection{Batch-Aware Optimization}
-\label{subsec:batch-optimization}
-\subsubsection{Expert Deduplication Strategy}
-The power-law distribution of expert popularity creates significant opportunities for batch-level optimization that prior single-token approaches cannot exploit. The concentration effects we identified, where the most popular experts handle a disproportionate fraction of routing decisions, suggest that multiple tokens in a batch will frequently request overlapping sets of experts (\Cref{fig:batch_scaling_validation}). Our deduplication algorithm, as explained in \Cref{alg:deduplication} in \Cref{app:memoryCaching}, and illustrated in \Cref{fig:batch-deduplication} exploits this pattern by identifying unique experts across all batch items and computing an optimal loading schedule that prioritizes high-frequency experts.
-The algorithm reduces the total number of expert loads from $O(B \cdot k)$ for naive per-item loading to $O(B^{\alpha} \cdot k)$ where $\alpha = 0.932 < 1$, providing sublinear scaling that becomes increasingly beneficial at larger batch sizes. This theoretical guarantee stems directly from the power-law scaling property, which we empirically validated, ensuring predictable performance improvements as batch sizes increase.
+% \subsection{Batch-Aware Optimization}
+% \label{subsec:batch-optimization}
+% \subsubsection{Expert Deduplication Strategy}
+% The power-law distribution of expert popularity creates significant opportunities for batch-level optimization that prior single-token approaches cannot exploit. The concentration effects we identified, where the most popular experts handle a disproportionate fraction of routing decisions, suggest that multiple tokens in a batch will frequently request overlapping sets of experts (\Cref{fig:batch_scaling_validation}). Our deduplication algorithm, as explained in \Cref{alg:deduplication} in \Cref{app:memoryCaching}, and illustrated in \Cref{fig:batch-deduplication} exploits this pattern by identifying unique experts across all batch items and computing an optimal loading schedule that prioritizes high-frequency experts.
+% The algorithm reduces the total number of expert loads from $O(B \cdot k)$ for naive per-item loading to $O(B^{\alpha} \cdot k)$ where $\alpha = 0.932 < 1$, providing sublinear scaling that becomes increasingly beneficial at larger batch sizes. This theoretical guarantee stems directly from the power-law scaling property, which we empirically validated, ensuring predictable performance improvements as batch sizes increase.
 
-\subsubsection{Hardware-Aware Transfer Scheduling}
-Beyond deduplication, we implement sophisticated transfer mechanisms that pipeline expert loading with computation to hide memory bandwidth bottlenecks. Rather than loading all experts before computation begins, we divide the transfers into chunks that can overlap with the ongoing computation.
-This pipelining reduces effective loading latency by hiding transfer costs behind computation, a technique particularly effective when combined with our predictive prefetching that provides sufficient lead time for memory operations. The scheduler incorporates hardware-specific bandwidth constraints to prevent memory bottlenecks through utility-based optimization that combines prediction confidence, expert frequency, and recency. Using prediction confidence scores, we initiate transfers for high-confidence predictions before routing decisions are finalized, with the confidence threshold dynamically adjusted based on available bandwidth and cache capacity to ensure the system adapts to varying hardware capabilities.
+% \subsubsection{Hardware-Aware Transfer Scheduling}
+% Beyond deduplication, we implement sophisticated transfer mechanisms that pipeline expert loading with computation to hide memory bandwidth bottlenecks. Rather than loading all experts before computation begins, we divide the transfers into chunks that can overlap with the ongoing computation.
+% This pipelining reduces effective loading latency by hiding transfer costs behind computation, a technique particularly effective when combined with our predictive prefetching that provides sufficient lead time for memory operations. The scheduler incorporates hardware-specific bandwidth constraints to prevent memory bottlenecks through utility-based optimization that combines prediction confidence, expert frequency, and recency. Using prediction confidence scores, we initiate transfers for high-confidence predictions before routing decisions are finalized, with the confidence threshold dynamically adjusted based on available bandwidth and cache capacity to ensure the system adapts to varying hardware capabilities.
 
-\begin{figure}[]
-\centering
-\includegraphics[width=0.7\linewidth]{figs/DeDuplication.pdf}
-\caption{Expert deduplication before transferring to the GPU memory reduces bandwidth requirements significantly.}
-\label{fig:batch-deduplication}
-\vspace{-10pt}
-\end{figure}
+% \begin{figure}[]
+% \centering
+% \includegraphics[width=0.7\linewidth]{figs/DeDuplication.pdf}
+% \caption{Expert deduplication before transferring to the GPU memory reduces bandwidth requirements significantly.}
+% \label{fig:batch-deduplication}
+% \vspace{-10pt}
+% \end{figure}
 
 \subsection{Hierarchical Caching System}
 \label{subsec:caching} 
