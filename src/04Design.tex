@@ -48,7 +48,7 @@ at layer $\ell$, we generate predictions for all tokens in the same positions si
 
 \noindent\textbf{Layer Position Encoding:} To capture the hierarchical structure of transformer processing, we employ layer position encodings that enable the model to understand the significance of routing decisions at different depths. Each layer index $\ell$ in the context window is mapped to a learned embedding vector $\mathbf{W}_L[\ell] \in \mathbb{R}^d$, allowing the predictor to weight routing patterns differently based on their layer positions. Early layers typically exhibit syntactic routing patterns while deeper layers capture semantic dependencies, and our layer position encodings enable the model to automatically learn these layer-specific characteristics.
 
-\begin{figure}[]
+\begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{figs/pipeline.drawio.pdf}
 \caption{Neural expert predictor scheduling, illustrating routing history from layers $\ell-2$ to $\ell$ combined with current hidden states enables prediction of experts at layer $\ell+3$. 
@@ -73,6 +73,7 @@ are processed through a learned embedding matrix. This learned encoding enables 
 \noindent\textbf{Training Data Collection and Preprocessing:} We collect expert routing traces from pre-trained MoE models processing diverse datasets to ensure robust cross-domain generalization. The training corpus includes Natural Questions for factual question-answering (demonstrating structured reasoning patterns), IMDB movie reviews for sentiment analysis (capturing emotional and stylistic routing), and CNN/DailyMail for abstractive summarization (exhibiting complex semantic progressions). For each forward pass through the MoE model, we systematically record expert selections $E_t^{(\ell)}$ at every layer $\ell$ for each token position $t$, corresponding hidden states $H_t^{(\ell)}$ that serve as router inputs, and sequence metadata including attention masks and token positions.
 
 Consider a training example from CNN/DailyMail summarization processing "Hurricane winds caused widespread damage across coastal regions." The trace captures a semantically meaningful progression: "Hurricane" initially routes to Expert-23 (meteorological phenomena) in layer 4, transitions to Expert-78 (natural disaster categorization) in layer 12, and finally selects Expert-91 (impact assessment and quantification) in layer 20. This teaches the predictor to recognize the semantic evolution from basic entity recognition through categorical understanding to complex impact analysis, demonstrating how routing patterns reflect the hierarchical processing inherent in transformer architectures.
+
 
 \begin{figure}[]
 \centering
