@@ -47,7 +47,6 @@ To assess whether experts exhibit ``hot'' and ``cold'' behavior across layers, w
 The power-law structure has two implications. First, it enables universal prefetching strategies that target consistently popular experts. Second, for throughput-oriented batched inference, power-law concentration enables batch-aware deduplication---unique experts scale sublinearly with batch size ($\mathbb{E}[U(B)] \sim B^{0.932}$), reducing bandwidth requirements. We exploit this property in our batched evaluation (\Cref{sec:implementation}).
 
 Crucially, however, simple frequency-based methods fall short: due to temporal fluctuations and layer-specific specialization in expert popularity, naive frequency ranking yields only $\sim$12.3\% prediction accuracy, underscoring the need for cross-layer pattern modeling.
-
 The power-law exponent $\alpha$ also provides insight into scalability: higher $\alpha$ indicates stronger concentration where prediction is easier, while lower $\alpha$ suggests more diverse expert usage. Even at lower $\alpha$ values ($\alpha=1.2$ for DeepSeek), the cross-layer dependencies captured in the following section provide sufficient predictability. For emerging architectures activating more experts (e.g., top-12), we expect similar patterns to hold as long as routing decisions remain correlated across layers---a property inherent to hierarchical transformer processing.
 
 
