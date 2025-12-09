@@ -184,37 +184,7 @@ Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.4$\times$ \\
 \label{tab:batch}
 \end{table}
 
-<<<<<<< HEAD
 \noindent\textbf{Multi-GPU Scaling.}
 Production deployments often use tensor parallelism (TP) to distribute models across GPUs. Prophet's speedup is preserved under tensor parallelism---relative advantage remains within 2\% across TP=1--8. GPT-OSS-20B maintains 12.7$\times$/12.7$\times$/12.6$\times$/12.5$\times$ speedup at TP=1/2/4/8 respectively; Mixtral maintains 9.3$\times$/9.3$\times$/9.2$\times$/9.1$\times$; and similar stability holds for other models. In TP configurations, expert loading becomes a per-GPU operation; Prophet's predictions remain accurate because routing decisions are determined by model architecture, not parallelization strategy. The slight decrease at TP=8 reflects increased coordination overhead across GPUs, which affects both baseline and Prophet proportionally.
-=======
-Prophet's speedup remains stable across batch sizes 1--16, with <5\% relative decrease at larger batches. This stability occurs because Prophet's prediction accuracy is per-token (not batch-dependent), while baselines benefit from incidental expert reuse at larger batches---partially closing the gap but never eliminating Prophet's prediction advantage.
-
-%%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
-\subsection{Multi-GPU Scaling}
-\label{subsec:multigpu}
-
-Production deployments often use tensor parallelism (TP) to distribute models across GPUs. We evaluate Prophet under TP=1,2,4,8.
-
-\begin{table}[t]
-\centering
-\small
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Model} & \textbf{TP=1} & \textbf{TP=2} & \textbf{TP=4} & \textbf{TP=8} \\
-\midrule
-GPT-OSS-20B & 12.7$\times$ & 12.7$\times$ & 12.6$\times$ & 12.5$\times$ \\
-Mixtral-8x7B & 9.3$\times$ & 9.3$\times$ & 9.2$\times$ & 9.1$\times$ \\
-DeepSeek-MoE-16B & 3.8$\times$ & 3.8$\times$ & 3.8$\times$ & 3.7$\times$ \\
-Qwen3-30B & 2.8$\times$ & 2.8$\times$ & 2.8$\times$ & 2.7$\times$ \\
-Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.5$\times$ & 1.5$\times$ \\
-\bottomrule
-\end{tabular}
-\caption{Prophet speedup under tensor parallelism. Speedups are preserved as TP scales from 1 to 8 GPUs.}
-\label{tab:tp}
-\end{table}
-
-\Cref{tab:tp} demonstrates that Prophet's speedup is preserved under tensor parallelism---relative advantage remains within 2\% across TP=1--8. In TP configurations, expert loading becomes a per-GPU operation; Prophet's predictions remain accurate because routing decisions are determined by model architecture, not parallelization strategy. The slight decrease at TP=8 reflects increased coordination overhead across GPUs, which affects both baseline and Prophet proportionally.
->>>>>>> overleaf-2025-12-09-1946
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
