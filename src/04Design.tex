@@ -48,7 +48,7 @@ at layer $\ell$, we generate predictions for all tokens in the same positions si
 
 \noindent\textbf{Layer Position Encoding:} To capture the hierarchical structure of transformer processing, we employ layer position encodings that enable the model to understand the significance of routing decisions at different depths. Each layer index $\ell$ in the context window is mapped to a learned embedding vector $\mathbf{W}_L[\ell] \in \mathbb{R}^d$, allowing the predictor to weight routing patterns differently based on their layer positions. Early layers typically exhibit syntactic routing patterns while deeper layers capture semantic dependencies, and our layer position encodings enable the model to automatically learn these layer-specific characteristics.
 
-\begin{figure}[]
+\begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figs/pipeline.drawio.pdf}
 \caption{Neural expert predictor scheduling, illustrating routing history from layers $\ell-2$ to $\ell$ combined with current hidden states enables prediction of experts at layer $\ell+3$. 
@@ -74,7 +74,7 @@ are processed through a learned embedding matrix. This learned encoding enables 
 
 Consider a training example from CNN/DailyMail summarization processing "Hurricane winds caused widespread damage across coastal regions." The trace captures a semantically meaningful progression: "Hurricane" initially routes to Expert-23 (meteorological phenomena) in layer 4, transitions to Expert-78 (natural disaster categorization) in layer 12, and finally selects Expert-91 (impact assessment and quantification) in layer 20. This teaches the predictor to recognize the semantic evolution from basic entity recognition through categorical understanding to complex impact analysis, demonstrating how routing patterns reflect the hierarchical processing inherent in transformer architectures.
 
-\begin{figure}[]
+\begin{figure}[t]
 \centering
 \includegraphics[width=0.9\linewidth]{figs/switch_prediction_accuracy.pdf}
 \vspace{-10pt}
@@ -102,7 +102,7 @@ Most importantly, \Cref{fig:predictor_accuracy} shows that our predictor model i
 % Beyond deduplication, we implement sophisticated transfer mechanisms that pipeline expert loading with computation to hide memory bandwidth bottlenecks. Rather than loading all experts before computation begins, we divide the transfers into chunks that can overlap with the ongoing computation.
 % This pipelining reduces effective loading latency by hiding transfer costs behind computation, a technique particularly effective when combined with our predictive prefetching that provides sufficient lead time for memory operations. The scheduler incorporates hardware-specific bandwidth constraints to prevent memory bottlenecks through utility-based optimization that combines prediction confidence, expert frequency, and recency. Using prediction confidence scores, we initiate transfers for high-confidence predictions before routing decisions are finalized, with the confidence threshold dynamically adjusted based on available bandwidth and cache capacity to ensure the system adapts to varying hardware capabilities.
 
-% \begin{figure}[]
+% \begin{figure}[t]
 % \centering
 % \includegraphics[width=0.7\linewidth]{figs/DeDuplication.pdf}
 % \caption{Expert deduplication before transferring to the GPU memory reduces bandwidth requirements significantly.}
@@ -128,7 +128,7 @@ Promotion from L2  cache to L1 cache occurs when experts in host memory receive 
 This promotion strategy ensures that the most valuable experts migrate to the fastest cache tier over time, allowing the cache hierarchy to automatically adapt to workload-specific access patterns. The system maintains detailed access statistics for each expert to enable intelligent promotion decisions based on both immediate prediction confidence and longer-term usage trends. Furtehr details on cache management are provided in \Cref{app:memoryCaching}.
 
 
-\begin{figure}[]
+\begin{figure}[t]
 \centering
 \includegraphics[width=0.9\linewidth]{figs/ProphetDesign.pdf.pdf}
 \caption{Overall design of Prophet: For every layer, we run the expert prediction (\circled{1}) which goes for the expert selection logic to find the expert in the cache (\circled{2a}). If a hit, the expert is loaded to the LLM (\circled{3}); otherwise, upon a miss, the expert is looked up in the host memory (\circled{2b}) and unique experts are selected (\circled{3b}) and loaded (\circled{4b}) to the GPU and LLM (\circled{3}).}

@@ -33,22 +33,12 @@ Existing studies on strategies such as predictive pre-fetching~\cite{bambhaniya2
 To rigorously establish the feasibility of intelligent expert pre-fetching, we conducted a comprehensive analysis of expert routing patterns across six benchmark datasets spanning diverse domains: Natural Questions~\cite{googleNatural} (factual QA), GSM8K~\cite{gsm8k} (mathematical reasoning), HumanEval~\cite{humaneval} (code generation), WikiText~\cite{wikitext} (language modeling), Alpaca~\cite{alpaca} (instruction following), and SQuAD~\cite{squad} (reading comprehension). This diversity---ranging from structured math problems to open-ended instructions---provides a rigorous test of whether routing patterns are truly model-intrinsic rather than dataset-specific. With the context window constrained to 256 tokens, we exhaustively logged, for each input sequence, the expert-routing decision at every decoded token, thereby yielding 37,200 execution traces and approximately 3.34 million expert selections across mixture-of-experts models in the Switch Transformer and Qwen-MoE families. Our findings uncover fundamental structural patterns that existing methods fail to exploit jointly, offering strong motivation for neural predictor approaches over simple frequency-based baselines.
 
 
-<<<<<<< HEAD
 \begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/fig_powerlaw_combined.pdf}
   \vspace{-15pt}
   \caption{Power-law analysis across six MoE architectures. \textbf{(Left panels)} Rank-frequency distributions showing expert popularity follows power-law with exponent $\alpha = 1.2$--$2.2$ across models. Higher $\alpha$ (Qwen-30B, GPT-OSS) indicates stronger concentration where fewer experts dominate. \textbf{(Right panels)} Layer-expert activation heatmaps for Qwen-30B (128 experts) and DeepSeek (64 experts) showing cross-layer routing patterns that enable prediction.}
   \label{fig:power_law}
-=======
-\begin{figure*}[h!]
-\centering
-\includegraphics[width=0.9\linewidth]{figs/fig_powerlaw_combined.pdf}
-\vspace{-15pt}
-\caption{Power-law analysis across six MoE architectures. \textbf{(Left)} Rank-frequency distributions showing expert popularity follows power-law with $\alpha = 1.2$--$2.2$. \textbf{(Right)} Layer-expert activation heatmaps showing cross-layer patterns.}
- \label{fig:power_law}
-%\vspace{-10pt}
->>>>>>> 51b10896562b2f8705ce052752642e426c3a6e6c
 \end{figure*}
 
 % \begin{figure*}[t]
