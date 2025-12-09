@@ -126,8 +126,11 @@ A critical question is whether the predictor overfits to training domains or lea
 \label{subsubsec:overhead}
 
 The neural predictor introduces minimal overhead relative to MoE inference:
+
 \noindent\textbf{Computational Cost:} With 8.4M parameters (0.1--0.2\% of typical billion-parameter MoE models), the predictor requires 0.15--0.18ms per prediction compared to 15--50ms for MoE forward passes---representing 0.3--1.2\% latency overhead. Prediction runs asynchronously on a small GPU partition, enabling pipelined execution where predictions for layer $\ell+h$ complete while processing layer $\ell$.
+
 \noindent\textbf{Memory Footprint:} The predictor occupies 67MB for weights and inference state, compared to 3.2--12.8GB for MoE parameters---less than 2\% memory overhead even on consumer GPUs with 8GB VRAM.
+
 \noindent\textbf{Training Cost:} One-time predictor training requires 3.5--4.5 hours on a single A100 GPU, processing 37,200 routing traces. This amortizes across all subsequent inference runs without requiring model retraining---a key advantage over approaches that modify the MoE architecture itself.
 
 % \subsection{Batch-Aware Optimization}
@@ -151,7 +154,7 @@ The neural predictor introduces minimal overhead relative to MoE inference:
 \subsection{Prediction-Guided Expert Caching}
 \label{subsec:caching}
 
-The power-law distribution established in \Cref{sec:Motivation}---where the top 20\% of experts handle 75\% of routing decisions---motivates caching strategies that prioritize frequently-used ``hot'' experts over the long tail of rarely-activated ``cold'' experts. This insight is well-established in prior work: MoE-Infinity~\cite{moeinfinity} exploits sparsity-aware caching through Expert Activation Matrices that trace temporal locality, ProMoE~\cite{promoe} employs proactive caching with learned predictors based on token patterns, HybriMoE~\cite{hybrimoe} introduces score-based replacement considering recency and frequency, and PreScope~\cite{prescope} combines layer-aware prediction with cross-layer scheduling and asynchronous I/O. These systems demonstrate that expert caching is essential for efficient MoE inference under memory constraints.
+The power-law distribution established in \Cref{sec:Motivation}---where the top 20\% of experts handle 75\% of routing decisions---motivates caching strategies that prioritize frequently-used ``hot'' experts over the long tail of rarely-activated ``cold'' experts. This insight is well-established in prior work: MoE-Infinity~\cite{moeinfinity} exploits sparsity-aware caching through Expert Activation Matrices that trace temporal locality, ProMoE~\cite{promoe} employs proactive caching with learned predictors based on token patterns, HybriMoE~\cite{zhong2025hybrimoe} introduces score-based replacement considering recency and frequency, and PreScope~\cite{prescope} combines layer-aware prediction with cross-layer scheduling and asynchronous I/O. These systems demonstrate that expert caching is essential for efficient MoE inference under memory constraints.
 
 \noindent\textbf{Prophet's Adaptation:} Rather than designing a fundamentally new caching algorithm, \design adapts hierarchical caching to leverage its neural predictor's calibrated confidence scores. The key insight is that prediction confidence directly indicates cache placement priority: high-confidence predictions warrant L1 (GPU) placement for immediate access, while medium/lower-confidence predictions target L2 (host memory) for speculative coverage. This prediction-driven placement contrasts with reactive policies (LRU/LFU) that cannot anticipate future expert needs, and complements systems like DuoServe-MoE~\cite{duoserve} that use simpler lookahead predictors without multi-horizon confidence estimates.
 
