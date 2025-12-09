@@ -35,10 +35,22 @@ To rigorously establish the feasibility of intelligent expert pre-fetching, we c
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\linewidth]{figs/fig_powerlaw_combined.pdf}
-  \vspace{-15pt}
-  \caption{Power-law analysis across six MoE architectures. \textbf{(Left panels)} Rank-frequency distributions showing expert popularity follows power-law with exponent $\alpha = 1.2$--$2.2$ across models. Higher $\alpha$ (Qwen-30B, GPT-OSS) indicates stronger concentration where fewer experts dominate. \textbf{(Right panels)} Layer-expert activation heatmaps for Qwen-30B (128 experts) and DeepSeek (64 experts) showing cross-layer routing patterns that enable prediction.}
-  \label{fig:power_law}
+  \begin{subfigure}[b]{0.68\linewidth}
+    \includegraphics[width=\linewidth]{figs/fig_powerlaw_combined.pdf}
+    \vspace{-15pt}
+    \caption{Power-law analysis across six MoE architectures. \textbf{(Left)} Rank-frequency distributions showing expert popularity follows power-law with $\alpha = 1.2$--$2.2$. \textbf{(Right)} Layer-expert activation heatmaps showing cross-layer patterns.}
+    \label{fig:power_law}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.30\linewidth}
+    \includegraphics[width=\linewidth]{figs/cross_domain_transfer.pdf}
+    \vspace{-15pt}
+    \caption{Zero-shot cross-domain transfer on DeepSeek-MoE (67--98\% accuracy). \textbf{Domains:} D1=NQ, D2=SQuAD, D3=GSM8K, D4=HumanEval, D5=Alpaca, D6=WikiText.}
+    \label{fig:cross_domain_transfer}
+  \end{subfigure}
+  \vspace{-5pt}
+  \caption{Expert routing analysis. (a) Power-law distributions reveal heavy-tailed expert popularity enabling prefetch strategies. (b) Cross-domain transfer matrix demonstrates model-intrinsic routing patterns---accuracy remains high across all 36 domain pairs, confirming Prophet learns architectural structure rather than dataset-specific features.}
+  \label{fig:routing_analysis}
 \end{figure*}
 
 \subsection{Heavy-Tailed Expert Popularity}
@@ -79,13 +91,5 @@ This makes expert prediction fundamentally a \textbf{sequence modeling problem}:
 
 This principled design---grounded in information-theoretic analysis---distinguishes \design from ad-hoc predictors that lack theoretical justification. By framing expert prediction as sequence modeling, we can achieve prediction accuracies approaching the 4.11-bit theoretical limit, enabling the proactive prefetching needed to eliminate the I/O bottleneck in MoE inference.
 
-Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. When we train on two datasets and evaluate on a third held-out domain, prediction accuracy drops only 3--8\% compared to in-domain evaluation (\Cref{sec:implementation}). \Cref{fig:cross_domain_transfer} visualizes this robustness: when training on one domain and evaluating on others, prediction accuracy remains consistently high (69--97\%) across all 36 domain pairs, confirming that Prophet learns the model's routing structure rather than dataset-specific patterns. This robustness suggests that routing structure emerges from model architecture---how layers progressively transform representations---rather than from input semantics. The information-theoretic bounds we establish therefore apply broadly across diverse workloads, enabling deployment without per-dataset retraining.
-
-\begin{figure}[h!]
-  \centering
-  \includegraphics[width=0.85\linewidth]{figs/cross_domain_transfer.pdf}
-  \vspace{-10pt}
-  \caption{Zero-shot cross-domain transfer accuracy on DeepSeek-MoE. Each cell shows prediction accuracy when training on one domain (row) and testing on another (column). High accuracy across all domain pairs (69--97\%) demonstrates that Prophet learns model-intrinsic expert routing patterns rather than dataset-specific features, enabling deployment without per-domain retraining.}
-  \label{fig:cross_domain_transfer}
-\end{figure}
+Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. When we train on two datasets and evaluate on a third held-out domain, prediction accuracy drops only 3--8\% compared to in-domain evaluation (\Cref{sec:implementation}). \Cref{fig:cross_domain_transfer} visualizes this robustness: when training on one domain and evaluating on others, prediction accuracy remains consistently high (67--98\%) across all 36 domain pairs, confirming that Prophet learns the model's routing structure rather than dataset-specific patterns. This robustness suggests that routing structure emerges from model architecture---how layers progressively transform representations---rather than from input semantics. The information-theoretic bounds we establish therefore apply broadly across diverse workloads, enabling deployment without per-dataset retraining.
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
