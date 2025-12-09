@@ -428,19 +428,6 @@ Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.4$\times$ \\
 
 Prophet's speedup remains stable across batch sizes 1--16, with <5\% relative decrease at larger batches. This stability occurs because Prophet's prediction accuracy is per-token (not batch-dependent), while baselines benefit from incidental expert reuse at larger batches---partially closing the gap but never eliminating Prophet's prediction advantage.
 
-\subsubsection{Accuracy Threshold Sensitivity}
-We analyze how prediction accuracy affects end-to-end performance by simulating different miss rates:
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figs/information_budget_topk.pdf}
-\vspace{-15pt}
-\caption{Speedup sensitivity to prediction accuracy. Even at 70\% accuracy, Prophet maintains substantial speedups. Diminishing returns above 90\% accuracy.}
-\label{fig:sensitivity}
-\end{figure}
-
-\Cref{fig:sensitivity} shows that Prophet achieves substantial speedups even at 70\% prediction accuracy---well below our actual 80--89\% accuracy. Above 90\% accuracy, returns diminish as residual misses become rare. This robustness to prediction errors stems from hierarchical caching: medium-confidence predictions provide speculative coverage that catches many would-be misses.
-
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
 \subsection{Multi-GPU Scaling}
 \label{subsec:multigpu}
