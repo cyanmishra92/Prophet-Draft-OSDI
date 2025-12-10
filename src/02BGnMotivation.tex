@@ -74,12 +74,14 @@ The power-law exponent $\alpha$ also provides insight into scalability: higher $
 
 
 \subsection{Cross-Layer Routing Dependencies}
-Beyond popularity patterns, we examine whether expert routing exhibits temporal structure across layers. Using mutual information analysis, we quantify how much knowing recent routing history reduces uncertainty about future expert selections. The key finding: cross-layer routing exhibits 0.62 bits of mutual information, meaning knowledge of recent expert selections makes future selections 54\% more predictable than random chance. This 0.62-bit figure represents pairwise mutual information between adjacent layers $I(E^{(\ell)}; E^{(\ell+1)})$---the reduction in uncertainty about layer $\ell+1$'s expert given knowledge of layer $\ell$'s selection alone.
+Beyond popularity patterns, we examine whether expert routing exhibits temporal structure across layers. Using mutual information analysis, we quantify how much knowing recent routing history reduces uncertainty about future expert selections. The key finding: pairwise mutual information between adjacent layers is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62$ bits---the reduction in uncertainty about layer $\ell+1$'s expert given knowledge of layer $\ell$'s selection alone. However, this single-layer signal is only part of the picture; when we expand to incorporate a 3-layer context window with hidden states (detailed below), the total exploitable information increases substantially.
 
 \noindent\textbf{Uniformity Across Layer Positions.}
 A natural question is whether cross-layer dependencies vary by layer position---i.e., whether early, middle, and late layers exhibit fundamentally different routing behaviors that would motivate layer-group-specific predictors. Our analysis reveals the opposite: mutual information between layers $(\ell, \ell+h)$ remains stable regardless of whether $\ell$ falls in early, middle, or late network positions. This uniformity suggests that routing patterns reflect the progressive transformation of token representations---a consistent architectural mechanism rather than layer-position-specific behaviors. Consequently, a unified predictor that captures network-wide dependencies is both simpler and more principled than fragmented layer-group designs.
 
-Prior systems such as FATE~\cite{fate} and AdapMoE~\cite{adapmoe} employ cross-layer information through heuristic gates or single-layer lookahead. However, these approaches lack theoretical grounding for their design choices. Our information-theoretic analysis reveals \textit{why} cross-layer context matters and \textit{how much} information each source provides.
+Prior systems such as FATE~\cite{fate} and AdapMoE~\cite{adapmoe} employ cross-layer information through heuristic gates or single-layer lookahead. However, these approaches lack empirical grounding for their design choices. Our information-theoretic analysis reveals \textit{why} cross-layer context matters and \textit{how much} information each source provides.
+
+\noindent\textbf{Estimation Methodology.} MI values are computed via plug-in entropy estimators over 37,200 execution traces ($\sim$3.34M expert selections) with Miller-Madow bias correction. Bootstrap resampling (1000 iterations) yields 95\% confidence intervals; the pairwise MI estimate is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62 \pm 0.04$ bits.
 
 \noindent\textbf{Information Budget.} For a model with 128 experts, maximum entropy is 7.00 bits. When we expand beyond pairwise MI to incorporate a 3-layer context window with hidden states, our analysis reveals 4.11 bits (59\%) are exploitable for prediction, decomposed as follows:
 \begin{itemize}[leftmargin=*, nosep]
@@ -109,5 +111,5 @@ Critically, these routing patterns are \textbf{model-intrinsic} rather than data
   \vspace{-10pt}
 \end{wrapfigure}
 This robustness confirms that \design learns the model's internal routing structure---how transformer layers progressively transform representations---rather than dataset-specific lexical or semantic patterns.
-We provide comprehensive cross-domain evaluation across all five MoE architectures in \Cref{sec:implementation}, demonstrating that this model-intrinsic property holds broadly. The information-theoretic bounds established here therefore apply across diverse workloads, enabling deployment without per-dataset retraining.
+We provide comprehensive cross-domain evaluation across all five MoE architectures in \Cref{sec:implementation}, demonstrating that this model-intrinsic property holds broadly. The information-theoretic characterization established here therefore applies across diverse workloads, enabling deployment without per-dataset retraining.
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
