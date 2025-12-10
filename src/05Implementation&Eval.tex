@@ -102,17 +102,17 @@ Prophet targets latency-critical single-request inference (batch size 1), where 
 \centering
 \begin{subfigure}[b]{0.48\linewidth}
 \includegraphics[width=\linewidth]{figs/fig1_tpot_breakdown.pdf}
-\caption{TPOT comparison across all systems. Prophet (gold) achieves near-EP performance while baselines suffer from I/O bottlenecks. The hatched portion shows Prophet's 2\% miss penalty.}
+\caption{TPOT comparison}
 \label{fig:tpot_comparison}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\linewidth}
 \includegraphics[width=\linewidth]{figs/fig2_tail_latency_cdf.pdf}
-\caption{Tail latency distributions showing Prophet's tight P99.9/P50 ratio (1.05--1.15$\times$) versus baseline's high variance (1.50--1.75$\times$).}
+\caption{Tail latency distribution}
 \label{fig:tail_cdf}
 \end{subfigure}
 \vspace{-5pt}
-\caption{End-to-end latency analysis at batch size 1 with 4,096-token context. Prophet achieves 1.53--10.38$\times$ TPOT speedup (left) and dramatically reduces tail latency variance (right), enabling predictable SLO compliance.}
+\caption{End-to-end latency analysis at batch size 1 with 4,096-token context. (a) Prophet (gold) achieves 1.53--10.38$\times$ TPOT speedup over On-Demand; hatched portion shows 2\% miss penalty. (b) Prophet maintains tight P99.9/P50 ratio (1.05--1.15$\times$) versus baseline's high variance (1.50--1.75$\times$), enabling predictable SLO compliance.}
 \label{fig:latency_combined}
 \end{figure*}
 
@@ -128,17 +128,17 @@ Production deployments require not just low mean latency but predictable tail la
 \centering
 \begin{subfigure}[b]{0.48\linewidth}
 \includegraphics[width=\linewidth]{figs/fig5_memory_breakdown.pdf}
-\caption{Memory breakdown per model. Prophet reduces expert memory by 70\% while increasing KV cache capacity for longer contexts.}
+\caption{Memory breakdown}
 \label{fig:memory_breakdown}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\linewidth}
 \includegraphics[width=\linewidth]{figs/fig3_context_capacity.pdf}
-\caption{Maximum context length within 640GB memory budget. Prophet enables 4--8$\times$ longer contexts than On-Demand.}
+\caption{Context capacity}
 \label{fig:context}
 \end{subfigure}
 \vspace{-5pt}
-\caption{Memory efficiency and context extension. Prophet trades expert memory for KV cache (left), enabling 4--8$\times$ longer context lengths (right) while maintaining near-EP latency.}
+\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency.}
 \label{fig:memory_combined}
 \end{figure*}
 
