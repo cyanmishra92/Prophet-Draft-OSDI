@@ -104,6 +104,9 @@ This makes expert prediction fundamentally a \textbf{sequence modeling problem}:
 
 This principled design---grounded in information-theoretic analysis---distinguishes \design from ad-hoc predictors that lack theoretical justification. By framing expert prediction as sequence modeling, we can achieve prediction accuracies approaching the 4.11-bit theoretical limit, enabling the proactive prefetching needed to eliminate the I/O bottleneck in MoE inference.
 Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. To validate this claim, we evaluate cross-domain generalization: training \design on traces from one domain and testing on a completely different domain. Our six domains span diverse task types---factual question answering (Natural Questions), reading comprehension (SQuAD), mathematical reasoning (GSM8K), code generation (HumanEval), instruction following (Alpaca), and language modeling (WikiText)---ensuring that any observed generalization cannot be attributed to superficial input similarities (from here on we use the following shorthand for domain names: D1=NQ, D2=SQuAD, D3=GSM8K, D4=HumanEval, D5=Alpaca, D6=WikiText.).
+
+
+\Cref{fig:cross_domain_transfer} visualizes the complete $6\times6$ transfer matrix for DeepSeek-MoE: prediction accuracy remains consistently high (67--98\%) across all 36 train-test domain pairs. Even the most challenging transfers (e.g., training on code and testing on math) achieve over 70\% accuracy. 
 \begin{wrapfigure}{r}{0.4\linewidth}
   \vspace{-12pt}
   \centering
@@ -113,7 +116,6 @@ Critically, these routing patterns are \textbf{model-intrinsic} rather than data
   \label{fig:cross_domain_transfer}
   \vspace{-10pt}
 \end{wrapfigure}
-
-\Cref{fig:cross_domain_transfer} visualizes the complete $6\times6$ transfer matrix for DeepSeek-MoE: prediction accuracy remains consistently high (67--98\%) across all 36 train-test domain pairs. Even the most challenging transfers (e.g., training on code and testing on math) achieve over 70\% accuracy. This robustness confirms that \design learns the model's internal routing structure---how transformer layers progressively transform representations---rather than dataset-specific lexical or semantic patterns.
+This robustness confirms that \design learns the model's internal routing structure---how transformer layers progressively transform representations---rather than dataset-specific lexical or semantic patterns.
 We provide comprehensive cross-domain evaluation across all five MoE architectures in \Cref{sec:implementation}, demonstrating that this model-intrinsic property holds broadly. The information-theoretic bounds established here therefore apply across diverse workloads, enabling deployment without per-dataset retraining.
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
