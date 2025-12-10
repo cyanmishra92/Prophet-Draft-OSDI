@@ -188,6 +188,9 @@ Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.4$\times$ \\
 \end{table}
 
 \noindent\textbf{Multi-GPU Scaling.}
-Production deployments often use tensor parallelism (TP) to distribute models across GPUs. Prophet's speedup is preserved under tensor parallelism---relative advantage remains within 2\% across TP=1--8. GPT-OSS-20B maintains 12.7$\times$/12.7$\times$/12.6$\times$/12.5$\times$ speedup at TP=1/2/4/8 respectively; Mixtral maintains 9.3$\times$/9.3$\times$/9.2$\times$/9.1$\times$; and similar stability holds for other models. In TP configurations, expert loading becomes a per-GPU operation; Prophet's predictions remain accurate because routing decisions are determined by model architecture, not parallelization strategy. The slight decrease at TP=8 reflects increased coordination overhead across GPUs, which affects both baseline and Prophet proportionally.
+Production deployments often use tensor parallelism (TP) to distribute models across GPUs. Prophet's speedup is preserved under tensor parallelism---relative advantage remains within 2\% across TP=1--8. GPT-OSS-20B maintains 12.7$\times$/12.7$\times$/12.6$\times$/12.5$\times$ speedup at TP=1/2/4/8 respectively; Mixtral maintains 9.3$\times$/9.3$\times$/9.2$\times$/9.1$\times$; and similar stability holds for other models. In TP configurations, expert loading becomes a per-GPU operation; Prophet's predictions remain accurate because routing decisions are determined by model architecture, not parallelization strategy.
+
+\noindent\textbf{Continuous Batching Compatibility.}
+Prophet's per-token routing history naturally extends to continuous batching frameworks (vLLM, TGI) that dynamically schedule requests. Per-request history persists across batch iterations, and predictions update as new tokens generate. We leave full integration with production serving frameworks for future work, noting that Prophet's prediction mechanism is compatible with their iteration-level batching and that the power-law expert concentration ensures popular experts remain cached across request boundaries.
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
