@@ -13,7 +13,7 @@ We implement Prophet as a complete inference optimization system comprising appr
 Our primary evaluation platform uses NVIDIA A100-80GB GPUs (PCIe 4.0) with 2 TB/s HBM bandwidth. Host memory comprises 512GB DDR4-3200 providing 204 GB/s bandwidth, connected via PCIe 4.0 at 64 GB/s bidirectional. For multi-GPU experiments, we use 4$\times$ A100 GPUs interconnected with NVLink (600 GB/s aggregate). This configuration represents a typical cloud deployment scenario where GPU memory is constrained relative to model size, necessitating expert offloading to host memory.
 
 \noindent\textbf{Target Models.}
-We evaluate on five production MoE architectures representing the current state-of-the-art: GPT-OSS-20B (32 experts, top-3--6 routing, $\sim$600MB per expert, 20B total parameters), Mixtral-8x7B~\cite{jiang2024mixtral} (8 experts, top-4 routing, $\sim$1.3GB per expert, 46.7B total), DeepSeek-MoE-16B~\cite{dai2024deepseekmoe} (64 experts, top-1 routing, $\sim$250MB per expert, 16B total), Qwen3-30B~\cite{yang2025qwen3} (128 experts, top-1 routing, $\sim$250MB per expert, 30B total), and Qwen1.5-MoE-A2.7B~\cite{bai2023qwen} (60 experts, top-1 routing, $\sim$100MB per expert, 14.3B total). This selection spans diverse expert counts (8--128), routing strategies (top-1 to top-6), and model scales (14--47B parameters). We exclude Switch Transformer from our main evaluation as its top-1 routing is substantially easier to predict and well-studied in prior work~\cite{promoe, pregated}; our target models present more challenging benchmarks.
+We evaluate on five production MoE architectures representing the current state-of-the-art: GPT-OSS-20B ([\textbf{M3}], 32 experts, top-3--6 routing, $\sim$600MB per expert, 20B total parameters), Mixtral-8x7B~\cite{jiang2024mixtral} ([\textbf{M5}], 8 experts, top-4 routing, $\sim$1.3GB per expert, 46.7B total), DeepSeek-MoE-16B~\cite{dai2024deepseekmoe} ([\textbf{M2}], 64 experts, top-1 routing, $\sim$250MB per expert, 16B total), Qwen3-30B~\cite{yang2025qwen3} ([\textbf{M4}], 128 experts, top-1 routing, $\sim$250MB per expert, 30B total), and Qwen1.5-MoE-A2.7B~\cite{bai2023qwen} ([\textbf{M1}], 60 experts, top-1 routing, $\sim$100MB per expert, 14.3B total). This selection spans diverse expert counts (8--128), routing strategies (top-1 to top-6), and model scales (14--47B parameters). We exclude Switch Transformer from our main evaluation as its top-1 routing is substantially easier to predict and well-studied in prior work~\cite{promoe, pregated}; our target models present more challenging benchmarks.
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
 \subsection{Experimental Setup}
@@ -26,7 +26,11 @@ We evaluate across six diverse benchmarks: GSM8K~\cite{gsm8k} (mathematical reas
 We compare against five approaches: (1) \textit{On-Demand Loading}---loads experts reactively when routing decisions are made, representing the default approach in memory-constrained deployments; (2) \textit{LRU Caching}---maintains a cache of recently-used experts without prediction; (3) \textit{Expert-Parallel (EP) Upper Bound}---an idealized scenario where all experts are GPU-resident with zero I/O overhead (achievable via multi-GPU deployment or hypothetically infinite single-GPU memory), representing the performance ceiling; (4) \textit{ProMoE}~\cite{promoe}---stride-based prefetching assuming periodic access patterns; and (5) \textit{ExpertFlow}~\cite{expertflow}---token-distribution-aware expert placement with adaptive loading. All baselines are faithfully reimplemented and evaluated under identical hardware constraints.
 
 \noindent\textbf{Complementary Optimizations.}
-Prophet focuses on prediction-driven prefetching and is orthogonal to other MoE optimization strategies. CPU/GPU co-execution systems (MoE-Lightning~\cite{cao2025moe}, kTransformers~\cite{ktransformers}) exploit CPU compute for expert execution; Prophet's predictions can inform which experts to execute on which device. Continuous batching frameworks (vLLM, TGI) manage request scheduling; Prophet's per-request routing history integrates with their iteration-level batching. Quantization techniques (INT4/INT8) reduce expert size; Prophet's prefetching benefits scale with reduced transfer times. These approaches are complementary and can be combined with Prophet for additional gains.
+Prophet focuses on prediction-driven prefetching and is orthogonal to other MoE optimization strategies. CPU/GPU co-execution systems~\cite{cao2025moe, ktransformers} 
+%(MoE-Lightning~\cite{cao2025moe}, kTransformers~\cite{ktransformers}) 
+exploit CPU compute for expert execution; Prophet's predictions can inform which experts to execute on which device. Continuous batching frameworks (vLLM, TGI) manage request scheduling; Prophet's per-request routing history integrates with their iteration-level batching. Quantization techniques reduce expert size; Prophet's prefetching benefits scale with reduced transfer times. These approaches 
+%are complementary and 
+can be combined with Prophet for additional gains.
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
 \subsection{Predictor Analysis}
@@ -69,7 +73,8 @@ Before presenting end-to-end results, we establish that Prophet's neural predict
 We define prediction accuracy as recall@k: for each token, we measure whether Prophet's top-k predicted experts contain the actual router-selected expert(s). Prophet achieves 80--89\% prediction accuracy across all models---DeepSeek (88.6\%), GPT-OSS (86.6\%), Mixtral (82.4\%), Qwen3 (80.4\%), and Qwen1.5 (80.4\%)---substantially higher than prior heuristic approaches. Higher accuracy correlates with stronger power-law concentration ($\alpha > 2$), making routing more predictable.
 
 \noindent\textbf{Cross-Domain Generalization.}
-\Cref{fig:cross_domain} presents zero-shot cross-domain transfer matrices for all five models. Each off-diagonal cell represents a true hold-out evaluation: the predictor is trained \textit{exclusively} on domain $X$ and tested on domain $Y$ with zero data overlap. This zero-shot transfer (e.g., training on code generation and testing on mathematical reasoning) represents the worst-case generalization scenario. Prediction accuracy remains 67--98\% across all 180 train-test domain pairs, with only 3--8\% degradation vs. in-domain. This robustness confirms that Prophet learns model-intrinsic routing structure---how transformer layers progressively transform representations---rather than dataset-specific lexical or semantic patterns.
+\Cref{fig:cross_domain} presents zero-shot cross-domain transfer matrices for all five models. Each off-diagonal cell represents a true hold-out evaluation: the predictor is trained \textit{exclusively} on domain $X$ and tested on domain $Y$ with zero data overlap. This zero-shot domain transfer %(e.g., training on code generation and testing on mathematical reasoning) 
+represents the worst-case generalization scenario. Prediction accuracy remains 67--98\% across all 180 train-test domain pairs, with only 3--8\% degradation vs. in-domain. This confirms that Prophet learns model-intrinsic routing structure: how transformer layers progressively transform representations rather than dataset-specific lexical or semantic patterns.
 
 \begin{table}[t]
 \centering
@@ -112,17 +117,20 @@ Prophet targets latency-critical single-request inference (batch size 1), where 
 \label{fig:tail_cdf}
 \end{subfigure}
 \vspace{-5pt}
-\caption{End-to-end latency analysis at batch size 1 with 4,096-token context. (a) Prophet (gold) achieves 1.53--10.38$\times$ TPOT speedup over On-Demand; hatched portion shows 2\% miss penalty. (b) Prophet maintains tight P99.9/P50 ratio (1.05--1.15$\times$) versus baseline's high variance (1.50--1.75$\times$), enabling predictable SLO compliance.}
+\caption{End-to-end latency analysis at batch size 1 with 4,096-token context. (a) Prophet (gold) achieves 1.53--10.38$\times$ TPOT speedup over On-Demand; hatched portion shows 2\% miss penalty. (b) Prophet maintains tight P99.9/P50 ratio (1.05--1.15$\times$) versus %baseline's high variance (1.50--1.75$\times$)., 
+enabling predictable SLO compliance. 
+\textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}.}
 \label{fig:latency_combined}
 \end{figure*}
 
 \noindent\textbf{End-to-End Latency.}
-\Cref{fig:tpot_comparison} presents Time Per Output Token (TPOT) results at batch size 1 with 4,096-token context. Prophet achieves substantial speedups across all architectures: GPT-OSS-20B improves from 2,583ms to 249ms (10.4$\times$), Mixtral-8x7B from 3,848ms to 479ms (8.0$\times$), DeepSeek-MoE-16B from 2,263ms to 622ms (3.6$\times$), Qwen3-30B from 6,123ms to 2,232ms (2.7$\times$), and Qwen1.5-MoE from 1,119ms to 729ms (1.5$\times$). The speedup magnitude correlates with I/O dominance in baseline execution---GPT-OSS-20B exhibits the highest speedup because expert transfer dominates 92\% of baseline execution time, while Qwen1.5-MoE shows smaller speedup because transfer constitutes only 36\% of its baseline.
+\Cref{fig:tpot_comparison} presents Time Per Output Token (TPOT) results at batch size 1 with 4,096-token context. Prophet achieves substantial speedups across all architectures: GPT-OSS-20B improves from 2,583ms to 249ms (10.4$\times$), Mixtral-8x7B from 3,848ms to 479ms (8.0$\times$), DeepSeek-MoE-16B from 2,263ms to 622ms (3.6$\times$), Qwen3-30B from 6,123ms to 2,232ms (2.7$\times$), and Qwen1.5-MoE from 1,119ms to 729ms (1.5$\times$). The speedup magnitude correlates with I/O dominance in baseline execution. GPT-OSS-20B exhibits the highest speedup because expert transfer dominates 92\% of baseline execution time, while a much smaller model Qwen1.5-MoE shows smaller speedups.% because transfer constitutes only 36\% of its baseline.
 
 Prophet's TPOT includes a small miss penalty (hatched portion in \Cref{fig:tpot_comparison}) from the 2\% of experts not correctly prefetched. This penalty ranges from 7.9ms for Qwen1.5-MoE to 79.4ms for Qwen3-30B, proportional to each model's transfer time. Despite this penalty, Prophet achieves 81--99\% of EP's performance---the upper bound where all experts are GPU-resident---while using 70\% less expert memory.
 
 \noindent\textbf{Tail Latency.}
-Production deployments require not just low mean latency but predictable tail latency for SLO compliance. \Cref{fig:tail_cdf} shows latency distributions across 10,000 inference samples per model. Prophet's P99.9 improvements are even more dramatic than mean speedups: GPT-OSS-20B achieves 19.4$\times$ (4,520ms$\rightarrow$234ms), Mixtral 14.2$\times$ (6,733ms$\rightarrow$474ms), DeepSeek 5.8$\times$ (3,961ms$\rightarrow$679ms), Qwen3 4.3$\times$ (10,715ms$\rightarrow$2,477ms), and Qwen1.5 2.4$\times$ (1,958ms$\rightarrow$832ms). This stability is critical: baseline systems exhibit P99.9/P50 ratios of 1.50--1.75$\times$ due to unpredictable cache misses, while Prophet maintains tight ratios of only 1.05--1.15$\times$ by ensuring high-probability experts are preloaded.
+%Production deployments require not just low mean latency but predictable tail latency for SLO compliance. 
+\Cref{fig:tail_cdf} shows latency distributions across 100,000 inference samples per model. Prophet's P99.9 improvements are even more dramatic than mean speedups: GPT-OSS-20B achieves 19.4$\times$ (4,520ms$\rightarrow$234ms), Mixtral 14.2$\times$ (6,733ms$\rightarrow$474ms), DeepSeek 5.8$\times$ (3,961ms$\rightarrow$679ms), Qwen3 4.3$\times$ (10,715ms$\rightarrow$2,477ms), and Qwen1.5 2.4$\times$ (1,958ms$\rightarrow$832ms). This stability is critical: baseline systems exhibit P99.9/P50 ratios of 1.50--1.75$\times$ due to unpredictable cache misses, while Prophet maintains tight ratios of only 1.05--1.15$\times$ by ensuring high-probability experts are preloaded.
 
 \begin{figure*}[t]
 \centering
@@ -138,7 +146,7 @@ Production deployments require not just low mean latency but predictable tail la
 \label{fig:context}
 \end{subfigure}
 \vspace{-5pt}
-\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency.}
+\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}.}
 \label{fig:memory_combined}
 \end{figure*}
 
@@ -151,7 +159,7 @@ Production deployments require not just low mean latency but predictable tail la
 \centering
 \includegraphics[width=\linewidth]{figs/fig4_oi_vs_tpot.pdf}
 \vspace{-15pt}
-\caption{Operational Intensity vs. TPOT showing Prophet shifts all models toward the compute-bound regime (OI $>$ 1). Baseline models cluster at low OI (memory-bound); Prophet increases OI by 5.1--9.3$\times$.}
+\caption{Operational Intensity vs. TPOT showing Prophet shifts all models toward the compute-bound regime (OI $>$ 1). Baseline models cluster at low OI (memory-bound); Prophet increases OI by 5.1--9.3$\times$. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}.}
 \label{fig:oi_tpot}
 \end{figure}
 
@@ -183,7 +191,7 @@ Qwen3-30B & 2.7$\times$ & 2.6$\times$ & 2.5$\times$ \\
 Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.4$\times$ \\
 \bottomrule
 \end{tabular}
-\caption{Speedup vs. batch size. Prophet's advantage is stable across batch sizes.}
+\caption{Speedup vs. batch size.}% Prophet's advantage is stable across batch sizes.}
 \label{tab:batch}
 \end{table}
 
@@ -191,6 +199,6 @@ Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.4$\times$ \\
 Production deployments often use tensor parallelism (TP) to distribute models across GPUs. Prophet's speedup is preserved under tensor parallelism---relative advantage remains within 2\% across TP=1--8. GPT-OSS-20B maintains 10.4$\times$/10.4$\times$/10.3$\times$/10.2$\times$ speedup at TP=1/2/4/8 respectively; Mixtral maintains 8.0$\times$/8.0$\times$/7.9$\times$/7.8$\times$; and similar stability holds for other models. In TP configurations, expert loading becomes a per-GPU operation; Prophet's predictions remain accurate because routing decisions are determined by model architecture, not parallelization strategy.
 
 \noindent\textbf{Continuous Batching Compatibility.}
-Prophet's per-token routing history naturally extends to continuous batching frameworks (vLLM, TGI) that dynamically schedule requests. Per-request history persists across batch iterations, and predictions update as new tokens generate. We leave full integration with production serving frameworks for future work, noting that Prophet's prediction mechanism is compatible with their iteration-level batching and that the power-law expert concentration ensures popular experts remain cached across request boundaries.
+Prophet's per-token routing history naturally extends to continuous batching frameworks (vLLM, TGI) that dynamically schedule requests. Per-request history persists across batch iterations, and predictions update as new tokens generate. We leave full integration with production serving frameworks for future work, noting that Prophet's predictor is compatible with their iteration-level batching and that the power-law expert concentration ensures popular experts remain cached across request boundaries.
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%

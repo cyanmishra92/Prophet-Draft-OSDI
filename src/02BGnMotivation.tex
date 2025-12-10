@@ -11,7 +11,7 @@ LLMs are built from transformer layers (\Cref{fig:moe_architecture}(a)), each co
 Modern MoE models exhibit significant architectural diversity in their routing strategies. Sparse routing approaches, such as Switch Transformer~\cite{fedus2022switch}, employ top-1 (\Cref{fig:moe_architecture}(c)) expert selection, activating only 1 out of 128 experts per token. Dense routing architectures like Qwen1.5-MoE-A2.7B~\cite{bai2023qwen} employ 64 experts per MoE layer, comprising 4 shared always-active experts along with 4 out of 60 routing experts selected by the top-k router (8 experts per token), whereas Qwen3-235B-A22B~\cite{yang2025qwen3} scales this approach up to 128 experts with 8 activated per token (\Cref{fig:moe_architecture}(d));
 architectural details are provided in \Cref{appedndix:MoEModels}.
 
-\begin{figure}[h!]
+\begin{figure}[]
 \centering
 \includegraphics[width=\linewidth]{figs/LLM-MoE-Arch.pdf}
 \caption{LLM architecture comparison (a) Generic LLMs represented as layers of transformer blocks (b) inside view of a traditional dense LLM layer, (c) inside view of a MoE layer with top-1 routing (e.g. SwitchTransformer), and (d) MoE layer with top-k routing and shared experts where Expert-4 is always activated (e.g. Qwen1.5-MoE). The routing mechanism determines expert selection strategies and creates fundamentally different optimization challenges.}
@@ -64,32 +64,34 @@ To rigorously establish the feasibility of intelligent expert prefetching, we co
 % \end{figure*}
 
 \subsection{Heavy-Tailed Expert Popularity}
-To assess whether experts exhibit ``hot'' and ``cold'' behavior across layers, we conducted a power-law analysis on ranked expert usage~\cite{ghorbani2022scaling}. Ranking experts by selection frequency and fitting a power-law model reveals that expert selection follows a robust power-law distribution with exponent $\alpha = 1.2$--$2.2$ across six MoE architectures (\Cref{fig:power_law}). Models with higher $\alpha$ (Qwen-30B: $\alpha=2.1$, GPT-OSS: $\alpha=2.2$) exhibit a higher concentration, while lower $\alpha$ (Qwen-2.7B, DeepSeek: $\alpha=1.2$) indicates a more diverse expert usage. This heavy-tailed behavior results in extreme concentration: the top 20\% of experts account for up to 75\% of all routing decisions.
+To assess whether experts exhibit ``hot'' and ``cold'' behavior across layers, we conducted a power-law analysis on ranked expert usage~\cite{ghorbani2022scaling}. The ranking across experts by selection frequency and the fitting across a power-law model reveal that expert selection follows a power-law distribution with exponent $\alpha = 1.2$--$2.2$ across six MoE architectures (\Cref{fig:power_law}). Models with higher $\alpha$ (Qwen-30B: $\alpha=2.1$, GPT-OSS: $\alpha=2.2$) exhibit a higher concentration, while lower $\alpha$ (Qwen-2.7B, DeepSeek: $\alpha=1.2$) indicates a more diverse expert usage. This heavy-tailed behavior results in extreme concentration: the top 20\% of experts account for up to 75\% of all routing decisions.
+The power-law structure has two implications. First, it enables universal prefetching strategies that target consistently popular experts. Second, for throughput-oriented batched inference, power-law concentration enables batch-aware deduplication---unique experts scale sublinearly with batch size ($\mathbb{E}[U(B)] \sim B^{0.932}$), reducing bandwidth requirements. We exploit this property in batched evaluation.% (\Cref{sec:implementation}).
 
-The power-law structure has two implications. First, it enables universal prefetching strategies that target consistently popular experts. Second, for throughput-oriented batched inference, power-law concentration enables batch-aware deduplication---unique experts scale sublinearly with batch size ($\mathbb{E}[U(B)] \sim B^{0.932}$), reducing bandwidth requirements. We exploit this property in our batched evaluation (\Cref{sec:implementation}).
+Crucially, however, simple frequency-based methods fall short: due to temporal fluctuations and layer-specific specialization in expert popularity, naive frequency ranking yields only $\sim$12.3\% prediction accuracy, underscoring the need for cross-layer pattern modeling. The power-law exponent $\alpha$ also provides insight into scalability: higher $\alpha$ indicates stronger concentration where prediction is easier, while lower $\alpha$ suggests more diverse expert usage. Even at lower $\alpha$ values ($\alpha=1.2$ for DeepSeek), the cross-layer dependencies captured in the following section provide sufficient predictability. For emerging architectures activating more experts (e.g., top-12), we expect similar patterns to hold as long as routing decisions remain correlated across layers---a property inherent to hierarchical transformer processing. 
 
-Crucially, however, simple frequency-based methods fall short: due to temporal fluctuations and layer-specific specialization in expert popularity, naive frequency ranking yields only $\sim$12.3\% prediction accuracy, underscoring the need for cross-layer pattern modeling.
-
-The power-law exponent $\alpha$ also provides insight into scalability: higher $\alpha$ indicates stronger concentration where prediction is easier, while lower $\alpha$ suggests more diverse expert usage. Even at lower $\alpha$ values ($\alpha=1.2$ for DeepSeek), the cross-layer dependencies captured in the following section provide sufficient predictability. For emerging architectures activating more experts (e.g., top-12), we expect similar patterns to hold as long as routing decisions remain correlated across layers---a property inherent to hierarchical transformer processing.
-
+%%%%%
 
 \subsection{Cross-Layer Routing Dependencies}
-Beyond popularity patterns, we examine whether expert routing exhibits temporal structure across layers. Using mutual information analysis, we quantify how much knowing recent routing history reduces uncertainty about future expert selections. The key finding: pairwise mutual information between adjacent layers is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62$ bits---the reduction in uncertainty about layer $\ell+1$'s expert given knowledge of layer $\ell$'s selection alone. However, this single-layer signal is only part of the picture; when we expand to incorporate a 3-layer context window with hidden states (detailed below), the total exploitable information increases substantially.
+Beyond popularity patterns, we examine whether expert routing exhibits temporal structure across layers. Using mutual information (MI) analysis, we quantify how much knowing recent routing history reduces uncertainty about future expert selections. We onserve: pairwise mutual information between adjacent layers is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62$ bits---the reduction in uncertainty about layer $\ell+1$'s expert given knowledge of layer $\ell$'s selection alone. However, this single-layer signal is only part of the picture; when we expand to incorporate a 3-layer context window with hidden states (detailed below), the total exploitable information increases substantially.
 
 \noindent\textbf{Uniformity Across Layer Positions.}
 A natural question is whether cross-layer dependencies vary by layer position---i.e., whether early, middle, and late layers exhibit fundamentally different routing behaviors that would motivate layer-group-specific predictors. Our analysis reveals the opposite: mutual information between layers $(\ell, \ell+h)$ remains stable regardless of whether $\ell$ falls in early, middle, or late network positions. This uniformity suggests that routing patterns reflect the progressive transformation of token representations---a consistent architectural mechanism rather than layer-position-specific behaviors. Consequently, a unified predictor that captures network-wide dependencies is both simpler and more principled than fragmented layer-group designs.
 
 Prior systems such as FATE~\cite{fate} and AdapMoE~\cite{adapmoe} employ cross-layer information through heuristic gates or single-layer lookahead. However, these approaches lack empirical grounding for their design choices. Our information-theoretic analysis reveals \textit{why} cross-layer context matters and \textit{how much} information each source provides.
 
-\noindent\textbf{Estimation Methodology.} MI values are computed via plug-in entropy estimators over 37,200 execution traces ($\sim$3.34M expert selections) with Miller-Madow bias correction. Bootstrap resampling (1000 iterations) yields 95\% confidence intervals; the pairwise MI estimate is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62 \pm 0.04$ bits.
+\noindent\textbf{Estimation Methodology.} MI values are computed via 
+%plug-in 
+entropy estimators over 37,200 execution traces ($\sim$3.34M expert selections) with Miller-Madow bias correction. Bootstrap resampling (1000 iterations) yields 95\% confidence intervals; the pairwise MI estimate is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62 \pm 0.04$ bits.
 
-\noindent\textbf{Information Budget.} For a model with 128 experts, maximum entropy is 7.00 bits. When we expand beyond pairwise MI to incorporate a 3-layer context window with hidden states, our analysis reveals 4.11 bits (59\%) are exploitable for prediction, decomposed as follows:
-\begin{itemize}[leftmargin=*, nosep]
-    \item \textbf{Expert context from preceding 3 layers (2.59 bits, 63\%):} The sequence of recently-selected experts provides the dominant predictive signal. When a token routes through experts $e_1 \rightarrow e_2 \rightarrow e_3$ across layers, this trajectory strongly constrains which experts will be selected next.
-    \item \textbf{Hidden states (0.76 bits, 18\%):} Token representations carry routing-relevant information that correlates with expert selection.
-    \item \textbf{Attention patterns (0.75 bits, 18\%):} Attention weights reflect semantic structure that influences routing decisions.
-\end{itemize}
-
+\noindent\textbf{Information Budget.} For a model with 128 experts, maximum entropy is 7.00 bits. When we expand beyond pairwise MI to incorporate a 3-layer context window with hidden states, our analysis reveals 4.11 bits (59\%) are exploitable for prediction, decomposed as:% follows:
+% \begin{itemize}[leftmargin=*, nosep]
+    % \item 
+    \textbf{Expert context from preceding 3 layers (2.59 bits, 63\%):} The sequence of recently-selected experts provides the dominant predictive signal. When a token routes through experts $e_1 \rightarrow e_2 \rightarrow e_3$ across layers, this trajectory strongly constrains which experts will be selected next.
+    %\item 
+    \textbf{Hidden states (0.76 bits, 18\%):} Token representations carry routing-relevant information that correlates with expert selection.
+    %\item 
+    \textbf{Attention patterns (0.75 bits, 18\%):} Attention weights reflect semantic structure that influences routing decisions.
+% \end{itemize}
 The temporal structure exhibits layer-dependent specialization: early layers show syntactic correlations with surface-level patterns, while deeper layers exhibit semantic dependencies spanning longer contexts~\cite{liu2024fantastic, rajbhandari2022deepspeed, zhang2024harder}. This hierarchical nature motivates prediction architectures that capture dependencies across multiple layers simultaneously.
 
 
@@ -99,8 +101,6 @@ The information budget reveals that 63\% of exploitable information (2.59 of 4.1
 
 Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. To validate this, we evaluate cross-domain generalization across six diverse domains: Natural Questions (D1), SQuAD (D2), GSM8K (D3), HumanEval (D4), Alpaca (D5), and WikiText (D6).
 
-
-\Cref{fig:cross_domain_transfer} visualizes the complete $6\times6$ transfer matrix for DeepSeek-MoE: prediction accuracy remains consistently high (67--98\%) across all 36 train-test domain pairs. Even the most challenging transfers (e.g., training on code and testing on math) achieve over 70\% accuracy. 
 \begin{wrapfigure}{r}{0.4\linewidth}
   \vspace{-12pt}
   \centering
@@ -110,6 +110,7 @@ Critically, these routing patterns are \textbf{model-intrinsic} rather than data
   \label{fig:cross_domain_transfer}
   \vspace{-10pt}
 \end{wrapfigure}
+\Cref{fig:cross_domain_transfer} visualizes the complete $6\times6$ transfer matrix for DeepSeek-MoE: prediction accuracy remains consistently high (67--98\%) across all 36 train-test domain pairs. Even the most challenging transfers (e.g., training on code and testing on math) achieve over 70\% accuracy. 
 This robustness confirms that \design learns the model's internal routing structure---how transformer layers progressively transform representations---rather than dataset-specific lexical or semantic patterns.
 We provide comprehensive cross-domain evaluation across all five MoE architectures in \Cref{sec:implementation}, demonstrating that this model-intrinsic property holds broadly. The information-theoretic characterization established here therefore applies across diverse workloads, enabling deployment without per-dataset retraining.
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
