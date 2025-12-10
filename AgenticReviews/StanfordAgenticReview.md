@@ -1,148 +1,110 @@
-Here is your review, faithfully converted into clean, well-structured Markdown while preserving all technical content and nuance:
+This paper proposes **Prophet**, a plug-and-play neural expert prefetching system for Mixture-of-Experts (MoE) inference. Prophet is grounded in an information-theoretic analysis that quantifies exploitable structure in expert routing and uses a lightweight transformer predictor to forecast experts multiple layers ahead; these predictions drive a confidence-tiered hierarchical cache to overlap I/O with compute. Evaluated on five MoE architectures and six datasets, Prophet reports **80–89% top-1 accuracy** at a 3-layer horizon and **1.5×–10.4× TPOT speedups**, with claimed robust cross-domain generalization.
 
 ---
 
-# Summary
-
-This paper proposes **Prophet**, a plug-and-play inference-side system that predicts future expert activations in Mixture-of-Experts (MoE) LLMs to prefetch experts and hide CPU→GPU transfer latency. The core idea is to ground predictor design in an information-theoretic analysis of expert routing (power-law expert popularity and cross-layer mutual information), and to use a lightweight transformer (8.4M parameters) to forecast experts 1–3 layers ahead, coupled with confidence-tiered hierarchical caching. Prophet reports **1.5×–10.4×** TPOT speedups and large tail-latency reductions across five MoE architectures, with claimed cross-domain generalization of prediction accuracy.
-
----
-
-# Strengths
+## **Strengths**
 
 ### **Technical novelty and innovation**
 
-* Positions expert prefetching on an information-theoretic footing, quantifying mutual information across layers and heavy-tailed expert popularity to motivate a multi-layer sequence predictor.
-* Uses a compact, learned transformer predictor with multi-horizon outputs (h ∈ {1,2,3}) and confidence-calibrated scores to drive tiered cache placement.
-* Clean, non-intrusive integration (no model weight changes), reusing hidden states via standard hooks.
+* Introduces an information-theoretic framing to quantify predictability in expert routing (mutual information and “information budget” decomposition), a principled angle relative to heuristic prior work.
+* Designs a compact transformer-based predictor exploiting cross-layer dependencies with multi-horizon forecasts (h ∈ {1, 2, 3}), matching prefetch timing to hardware constraints.
+* Confidence-aware hierarchical caching that maps prediction confidence to tier placement is well-motivated and coherent.
 
 ### **Experimental rigor and validation**
 
-* Evaluates on five diverse MoE models (including Mixtral, Qwen3, DeepSeek), covering both sparse (top-1) and denser routing, and reports per-token latency, tail latency, and operational intensity (OI) shifts.
-* Claims small overhead (<1% TPOT) and includes a breakdown.
-* Provides cross-domain generalization matrices (6×6 domain pairs per model) suggesting model-intrinsic routing structure.
+* Broad model coverage (five architectures) and diverse datasets (six domains), with cross-domain transfer matrices supporting generalization claims.
+* End-to-end results include latency, tail latency, operational intensity, and memory tradeoffs.
+* Multi-GPU and batch-size scaling show stable gains, indicating robustness beyond BS=1.
 
 ### **Clarity of presentation**
 
-* Clear system decomposition (predictor, cache, runtime), with scheduling diagrams and component pipeline illustration.
-* Articulates an “information budget” for prediction and maps it directly to design choices (context length c=3, horizon h=3).
+* The problem is well-motivated with profiling and a clear MoE bottleneck diagnosis; the system pipeline is clearly explained.
+* The link from the information-theoretic analysis to design choices (context window length, multi-horizon, unified predictor) is articulated.
 
 ### **Significance of contributions**
 
-* Targets a fundamental MoE inference bottleneck—expert I/O dominating time—and attempts to shift execution from memory-bound to compute-bound.
-* If robust, could generalize across deployments, improving latency and tail behavior without retraining large MoE models.
+* If validated, Prophet’s speedups and hit rates could meaningfully impact the cost/performance tradeoffs for cloud and edge MoE inference.
+* The idea that predictability exists and can be quantified may influence future prefetching, scheduling, and caching system designs.
 
 ---
 
-# Weaknesses
+## **Weaknesses**
 
 ### **Technical limitations or concerns**
 
-* Feasibility for large-expert, high-top-k models (e.g., Mixtral with ~1.3 GB per expert, top-4) is questionable; unclear whether prefetch windows suffice to hide transfer volume on PCIe 4.0. The paper lacks quantitative timelines relating prefetch lead time and transfer volume.
-* Claims of “98% effective hit rate” despite 80–89% top-1 predictor accuracy are insufficiently supported; no detailed hit/miss metrics, waste analysis, or cache-size sensitivity.
-* Extraction of hidden states and online inference of a learned model may have implications for multi-tenant serving, batching, or integration with serving stacks (e.g., vLLM), none of which is evaluated.
+* The “information budget” decomposition lacks methodological detail: estimating MI for continuous, high-dimensional hidden states is non-trivial and sensitive to discretization/estimators.
+* Predictor relies on hidden states and routing history; obtaining these may incur overhead or contention. The <1% overhead claim lacks microarchitectural evidence.
+* Assumes routing is model-intrinsic and stable, but real workloads undergo distribution shift; no adversarial or OOD stress tests are included.
 
 ### **Experimental gaps or methodological issues**
 
-* Missing comparisons with strong, recent systems leveraging learned routing or structural insights: **PreScope**, **FineMoE**, **Fate**, **MoE-Infinity**, **DuoServe-MoE**, **FloE**. Only ProMoE/ExpertFlow appear as baselines.
-* No reporting of speculative prefetch waste (bytes), cache pollution, or bandwidth contention—critical for I/O-bound inference.
-* Inconsistent accuracy metrics (top-1 vs recall@k), lacking ablations on h, c, cache capacities, or per-layer behavior.
-* Some lack of clarity around per-model predictor training and generalizability.
+* Inconsistent routing configurations: some Qwen models publicly use top-8, but the paper reports top-1 evaluation—materially affecting predictability and I/O balance.
+* Missing state-of-the-art baselines (MoE-Infinity, PreScope, Klotski, HybriMoE) under identical settings.
+* Reported 80–89% top-1 accuracy at a 3-layer horizon and ~98% effective hit rate seem unusually high; more ablations and calibration plots needed.
 
 ### **Clarity or presentation issues**
 
-* Inconsistent description of **Qwen1.5-MoE routing** (top-8 vs top-1).
-* Ambiguity in interpreting mutual information: the claim that 0.62 bits MI is “54% uncertainty reduction” appears inconsistent with a 7-bit max entropy for 128 experts.
-* Figures/tables contain symbol artifacts or axis mislabels, reducing reproducibility.
+* Definitions of “prediction accuracy” vary (top-1 vs. recall@k).
+* Ambiguous hardware/memory budgets (e.g., 640 GB context-length budget) make interpretation difficult.
 
 ### **Missing related work or comparisons**
 
-* No empirical comparison with:
-
-  * **PreScope** (learned predictors + global scheduler)
-  * **Fate** (gate lookahead)
-  * **FineMoE** (semantic/trajectory-based routing maps)
-  * **MoE-Infinity**, **DuoServe-MoE**, **FloE**
-* Insufficient discussion of pre-attention prediction, shadow routing, or emulation-based methods (e.g., OD-MoE).
+* No direct comparisons to PreScope’s LLaPor, MoE-Infinity, Klotski, HybriMoE, or similar recent works.
+* Closely related “pre-attention expert prediction” work (2511.10676) is not contextualized.
 
 ---
 
-# Detailed Comments
+## **Detailed Comments**
 
-## Technical soundness evaluation
+### **Technical soundness evaluation**
 
-* Information-theoretic analysis lacks methodological detail: MI estimation, bias correction, normalization, and decomposition of “exploitable bits” are unclear. The “54% uncertainty reduction” claim is inconsistent without a precise definition of normalized reduction.
-* Insufficient evidence that large-expert, high-top-k regimes can be overlapped: the compute budget versus transfer requirements is not quantified per model. PCIe 4.0 bandwidth constraints make hiding 4×1.3 GB/layer transfers nontrivial; timelines and measured overlap fractions are necessary.
-* The “98% effective hit rate” requires measurable cache statistics (L1/L2 hits, revalidation, sensitivity to drift) rather than high-level intuition.
+* Core idea—quantifying predictability and designing a multi-horizon predictor with confidence-aware caching—is sound and consistent with I/O bottlenecks in MoE inference.
+* MI estimation details are insufficient: continuous–discrete MI estimation requires careful estimator choice, bias correction, and discretization strategy.
+* The “uniformity across layers” MI result is promising but lacks detailed presentation (e.g., error bars across models).
 
-## Experimental evaluation assessment
+### **Experimental evaluation assessment**
 
-* Speedups are strong, but comparison set is incomplete: PreScope, Fate, MoE-Infinity, DuoServe-MoE, and FloE are missing.
-* OI improvements and tail latency measurements are good, but key counters are absent:
+* Breadth is strong, but fairness concerns arise from potential mismatch between model defaults and evaluated routing configs.
+* Baselines do not include recent competitive systems, weakening state-of-the-art claims.
+* Overhead accounting would benefit from hardware counters (PCIe utilization, CUDA timelines, HBM bandwidth).
+* High hit rates should be broken down by horizon, popularity bucket, and confidence threshold.
 
-  1. Prefetch waste fraction (bytes)
-  2. Total bytes moved vs On-Demand
-  3. Cache churn and eviction patterns
-  4. Behavior under distribution shift or bursty contexts
-* Cross-domain generalization is shown, but predictors appear per-model; cross-model transfer would strengthen claims of architecture-intrinsic routing structure.
-* TPOT values appear unusually large; additional context about the hardware stack is needed.
+### **Comparison with related work**
 
-## Comparison with related work
+* **PreScope:** Needs head-to-head evaluation with LLaPor and PreSched.
+* **MoE-Infinity:** Direct comparison on shared models/hardware needed.
+* **Klotski / HybriMoE:** Complementary approaches; comparisons or integrations would clarify Prophet’s added value.
+* **ExpertFlow:** Adaptive horizon approaches could complement Prophet.
+* **DuoServe-MoE:** Fair comparisons on shared MoE models would be informative.
+* **Pre-attention prediction (2511.10676):** Requires clarification of differences in assumptions and applicability.
 
-### **PreScope**
+### **Discussion of broader impact**
 
-* Shares the goal of predictive multi-layer prefetching; Prophet’s unified transformer predictor is distinct, but empirical comparison is needed.
-
-### **FineMoE**
-
-* Produces fine-grained routing maps; Prophet should compare waste, hit rates, and latency improvements.
-
-### **Fate**
-
-* Uses gate-based lookahead; serves as a strong, training-free baseline for cross-layer routing prediction.
-
-### **MoE-Infinity**
-
-* Focuses on request-level expert mapping; Prophet’s per-token granularity may offer advantages, but benchmarking is required.
-
-### **DuoServe-MoE / FloE**
-
-* These integrate predictive scheduling and compression; Prophet would benefit from comparisons or complementary evaluation.
+* Prophet suggests multi-horizon predictive caching may become a standard component of MoE serving systems.
+* Reliability under data drift remains a concern; online adaptation would strengthen operational viability.
+* Integration with hybrid CPU/GPU inference or speculative decoding may yield further gains.
 
 ---
 
-# Discussion of Broader Impact and Significance
+## **Questions for Authors**
 
-* Tackling the MoE I/O bottleneck is timely and practically important.
-* A compact learned predictor with confidence-tiered caching is a promising design.
-* The information-theoretic framing could influence future research, but requires clearer grounding.
-* Combining Prophet with expert compression or CPU/GPU co-execution could yield additional gains.
-
----
-
-# Questions for Authors
-
-1. **How were MI values estimated and normalized?** How does 0.62 bits yield a “54% uncertainty reduction” with 7-bit maximum entropy?
-2. **For large-expert, high-top-k models:** What are the compute timelines, prefetch windows, bytes transferred, PCIe bandwidth achieved, and overlap fraction? Can 4×1.3 GB/layer be fully overlapped on PCIe 4.0?
-3. **Prefetch waste:** What is the measured speculative waste in bytes and fraction? How does performance vary with cache capacities and confidence thresholds?
-4. **Accuracy metrics:** Are the reported 80–89% values based on top-1 or recall@k? Are predictors trained per model and routing configuration?
-5. **Baseline selection:** Why exclude PreScope, Fate, MoE-Infinity, DuoServe-MoE, and FloE? Will these comparisons be added?
-6. **Routing inconsistency:** Was Qwen1.5-MoE evaluated with top-1 or top-8 routing? How does top-8 affect transfer volume and performance?
-7. **Multi-tenant and batching scenarios:** How does Prophet behave under request interleaving or continuous batching? Any results integrated into a serving framework like vLLM?
-8. **Popularity drift:** Do expert popularity distributions drift across domains or within long contexts? Does Prophet adapt online, and how does drift affect the “98% effective hit rate”?
+1. How were MI and “information budget” components estimated for continuous sources (hidden states, attention)? Please include estimator details and ablations removing each feature source.
+2. Clarify activation configurations (top-k) for all models evaluated, especially Qwen variants.
+3. Can you provide direct comparisons against PreScope and MoE-Infinity on shared hardware/models?
+4. What is the precise meaning of the 640 GB “budget” in Figure 10b—VRAM only, pooled VRAM, host memory?
+5. How sensitive are results to confidence thresholds and L1/L2 cache sizes? Please include accuracy-overfetch and latency-threshold curves.
+6. Can you share hardware traces demonstrating predictor–model non-interference?
+7. How does Prophet behave under significant distribution shift or adversarial routing patterns? Is any online adaptation supported?
 
 ---
 
-# Overall Assessment
+## **Overall Assessment**
 
-Prophet represents a **promising and well-motivated** attempt to transform MoE inference from reactive to predictive. The information-theoretic framing is refreshing, and the system design (small learned predictor, multi-horizon outputs, confidence-tiered caching) is sensible and potentially impactful. Reported speedups and tail-latency gains are substantial.
+Prophet is an ambitious system combining information-theoretic analysis with neural prediction and confidence-aware caching. The approach is principled, the problem is important, and the evaluation breadth is substantial. However, several issues must be addressed before claiming state-of-the-art performance:
 
-However, the paper currently falls short on:
+1. Reconcile routing configurations with public defaults and quantify their impact.
+2. Include stronger baselines (PreScope, MoE-Infinity, Klotski, HybriMoE).
+3. Expand methodological details for MI estimation and predictor design.
+4. Provide deeper overhead analysis using hardware counters.
 
-1. **Technical clarity and plausibility** for high-top-k, large-expert settings (insufficient accounting of transfer volume vs. overlap budget; unsubstantiated 98% effective hit-rate).
-2. **Experimental completeness**, especially missing comparison to strong, recent baselines targeting the same problem.
-3. **Inconsistencies** in reporting (routing configs, accuracy metrics) and under-specified MI methodology.
-
-This line of work is promising and likely impactful with additional rigor. In its current form, the paper is **borderline reject**, with the recommendation to strengthen baseline comparisons, add precise transfer-overlap analyses, include waste accounting, and clarify theoretical foundations.
-
----
+With these improvements, Prophet would constitute a strong contribution with potential lasting impact. As it stands, the paper is promising, and acceptance is reasonable conditional on addressing the outlined concerns.
