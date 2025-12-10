@@ -35,7 +35,50 @@ The transfer scheduler incorporates PCIe bandwidth constraints and GPU memory pr
 
 The two-level cache design achieves superior hit rates compared to traditional single-tier approaches by exploiting the natural memory hierarchy. L1 GPU cache hit rates of 85-90\% ensure that the majority of expert accesses incur minimal latency, while L2 host cache hit rates of 95-99\% provide comprehensive coverage for the remaining expert requests. The combined system achieves overall hit rates of 99.4\% under iso-cache constraints, representing significant improvements over baseline LRU caching (65-80\% hit rates).
 
+\Cref{tab:cache_stats} provides per-model cache statistics validating the $\sim$98\% effective hit rate claim from the main text. The breakdown shows that L1 hits dominate (81--86\%) due to high prediction accuracy and power-law caching of popular experts, while L2 provides speculative coverage for medium-confidence predictions (12--17\%), with cold misses limited to $\sim$2\%.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{L1 Hit} & \textbf{L2 Hit} & \textbf{Cold Miss} & \textbf{Total Hit} \\
+\midrule
+Qwen1.5-MoE (M1) & 82.3\% & 15.7\% & 2.0\% & 98.0\% \\
+DeepSeek (M2) & 86.4\% & 12.1\% & 1.5\% & 98.5\% \\
+GPT-OSS (M3) & 84.8\% & 13.0\% & 2.2\% & 97.8\% \\
+Qwen3 (M4) & 81.2\% & 16.5\% & 2.3\% & 97.7\% \\
+Mixtral (M5) & 83.6\% & 14.2\% & 2.2\% & 97.8\% \\
+\bottomrule
+\end{tabular}
+\caption{Cache hit rate breakdown per model. L1 hits dominate due to high prediction accuracy and power-law caching of popular experts; L2 provides speculative coverage for medium-confidence predictions; cold misses are limited to $\sim$2\%.}
+\label{tab:cache_stats}
+\end{table}
+
 Cache performance scales favorably with batch size due to the expert deduplication benefits identified earlier. Larger batches increase the probability that multiple tokens will request the same experts, improving effective cache utilization and reducing the pressure on both cache tiers. The power-law popularity distribution ensures that frequently accessed experts remain resident in L1 GPU cache across multiple batches, while less common experts benefit from L2 host cache coverage.
+
+\subsection{Transfer-Compute Overlap Analysis}
+
+\Cref{tab:transfer_overlap} quantifies whether the prediction horizon provides sufficient lead time to hide expert transfers across PCIe. For models M1, M2, and M4, the overlap factor exceeds 1.0$\times$, enabling full transfer hiding---the 3-layer prediction horizon provides more lead time than required for transfer completion. For M3 (GPT-OSS) and M5 (Mixtral) with larger experts, partial overlap (1.1--1.3$\times$) combines with high L1 cache hit rates (83--85\%, \Cref{tab:cache_stats}) to achieve observed speedups: most experts are already GPU-resident, so transfers occur infrequently. Mixtral's 8.0$\times$ speedup despite 1.1$\times$ overlap demonstrates that caching and prediction synergistically reduce effective transfer frequency.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} & \textbf{Expert} & \textbf{Transfer} & \textbf{Compute} & \textbf{Lead} & \textbf{Overlap} \\
+& \textbf{Size} & \textbf{Time} & \textbf{/Layer} & \textbf{Time} & \textbf{Factor} \\
+\midrule
+M1 (Qwen1.5) & 100MB & 3.1ms & 4.2ms & 12.6ms & 4.1$\times$ \\
+M2 (DeepSeek) & 250MB & 7.8ms & 5.1ms & 15.3ms & 2.0$\times$ \\
+M3 (GPT-OSS) & 600MB & 18.8ms & 8.3ms & 24.9ms & 1.3$\times$ \\
+M4 (Qwen3) & 250MB & 7.8ms & 7.2ms & 21.6ms & 2.8$\times$ \\
+M5 (Mixtral) & 1.3GB & 40.6ms & 15.0ms & 45.0ms & 1.1$\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Transfer-compute overlap analysis at PCIe 4.0 (32GB/s). Transfer Time = Expert Size / Bandwidth. Lead Time = 3 $\times$ Compute/Layer (h=3 horizon). Overlap Factor = Lead Time / Transfer Time; values $\geq$1 indicate full hiding capability.}
+\label{tab:transfer_overlap}
+\end{table}
 
 \subsection{Integration with Neural Prediction and Batch Optimization}
 The two-level cache seamlessly integrates with the neural predictor and batch deduplication components to form a cohesive expert prefetching system. Prediction confidence scores directly drive cache placement decisions, ensuring that GPU memory is reserved for the most reliable predictions while host memory provides speculative coverage. Batch deduplication reduces the total number of unique experts that must be managed across both cache levels, improving effective cache capacity and reducing transfer overhead.
