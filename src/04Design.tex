@@ -104,10 +104,11 @@ Concurrent work PreScope~\cite{prescope} illustrates these tradeoffs: their MLP-
 \noindent\textbf{Training:} We employ a composite loss $\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{classification}} + \lambda_2 \mathcal{L}_{\text{ranking}} + \lambda_3 \mathcal{L}_{\text{confidence}}$, combining cross-entropy for prediction accuracy, ranking loss for probability ordering, and Brier score for confidence calibration. Training uses AdamW with cosine annealing, converging in 3.5--4.5 hours on a single A100. Systematic exploration confirms $c = 3$ and $h = 3$ provide optimal performance (\Cref{fig:predictor_accuracy}), outperforming state-of-the-art~\cite{promoe, pregated,prescope}.% ProMoE~\cite{promoe} and PreGated MoE~\cite{pregated}.
 
 \noindent\textbf{Prediction Accuracy and Overhead:}
-We define prediction accuracy as \textit{top-1 per-token-per-layer} accuracy: for each token $t$ at prediction horizon $h$, we check whether the predicted expert $\hat{e}_t^{(\ell+h)}$ matches the ground-truth expert selection $e_t^{(\ell+h)}$. This strict metric directly corresponds to prefetch utility, i.e., correct predictions enable cache hits, while incorrect predictions waste bandwidth. Across our evaluation, \design achieves 80--89\% top-1 accuracy across the five target architectures at horizon $h=3$, compared to 0.78--1.56\% random baselines showing over $50\times$ improvement.
-The 8.4M-parameter predictor adds $<$1\% latency and $<$2\% memory overhead; detailed breakdown in \Cref{subsec:predictor}. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}
+We define prediction accuracy as \textit{top-1 per-token-per-layer} accuracy: for each token $t$ at prediction horizon $h$, we check whether the predicted expert $\hat{e}_t^{(\ell+h)}$ matches the ground-truth expert selection $e_t^{(\ell+h)}$. This strict metric directly corresponds to prefetch utility, i.e., correct predictions enable cache hits, while incorrect predictions waste bandwidth. Across our evaluation, \design achieves 80--89\% top-1 accuracy across the five target architectures at horizon $h=3$.
+%, compared to 0.78--1.56\% random baselines showing over $50\times$ improvement.
+The 8.4M-parameter predictor adds $<$1\% latency and $<$2\% memory overhead; detailed breakdown in \Cref{subsec:predictor}. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}.
 %
-\footnote{\url{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}}.
+%\footnote{\url{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}}.
 
 %An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md} {available here}.
 
