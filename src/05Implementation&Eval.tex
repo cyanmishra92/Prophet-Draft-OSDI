@@ -69,7 +69,7 @@ Before presenting end-to-end results, we establish that Prophet's neural predict
 We define prediction accuracy as recall@k: for each token, we measure whether Prophet's top-k predicted experts contain the actual router-selected expert(s). Prophet achieves 80--89\% prediction accuracy across all models---DeepSeek (88.6\%), GPT-OSS (86.6\%), Mixtral (82.4\%), Qwen3 (80.4\%), and Qwen1.5 (80.4\%)---substantially higher than prior heuristic approaches. Higher accuracy correlates with stronger power-law concentration ($\alpha > 2$), making routing more predictable.
 
 \noindent\textbf{Cross-Domain Generalization.}
-A critical question for learned predictors is whether patterns generalize beyond training data. \Cref{fig:cross_domain} presents zero-shot cross-domain transfer matrices for all five models, where we train on traces from one domain and test on a completely different domain. Prediction accuracy remains 67--98\% across all 180 train-test domain pairs (36 per model $\times$ 5 models), with out-of-domain testing reducing accuracy by only 3--8\% compared to in-domain evaluation. This robustness confirms that Prophet learns model-intrinsic routing structure---how transformer layers progressively transform representations---rather than dataset-specific patterns, enabling generalization without per-dataset retraining.
+\Cref{fig:cross_domain} presents zero-shot cross-domain transfer matrices for all five models. Prediction accuracy remains 67--98\% across all 180 train-test domain pairs, with only 3--8\% degradation vs. in-domain---confirming Prophet learns model-intrinsic routing structure rather than dataset-specific patterns.
 
 \begin{table}[t]
 \centering

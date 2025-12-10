@@ -93,17 +93,9 @@ The temporal structure exhibits layer-dependent specialization: early layers sho
 
 
 \subsection{Implications for Predictor Design}
-The information budget reveals a critical insight: 63\% of exploitable information (2.59 of 4.11 bits) comes from the \textit{sequential pattern of expert selections} across layers. When a token routes through expert $e_1$ at layer $\ell-2$, then $e_2$ at layer $\ell-1$, and $e_3$ at layer $\ell$, this sequence $(e_1, e_2, e_3)$ strongly predicts which experts will be selected at layer $\ell+h$.
+The information budget reveals that 63\% of exploitable information (2.59 of 4.11 bits) comes from the \textit{sequential pattern of expert selections} across layers, making expert prediction fundamentally a \textbf{sequence modeling problem}. This insight motivates our transformer-based predictor design (\Cref{sec:design}), which encodes expert history, learns cross-layer dependencies through self-attention, and predicts multiple layers ahead ($h=3$) to provide prefetch lead time.
 
-This makes expert prediction fundamentally a \textbf{sequence modeling problem}: given a history of expert selections, predict future selections. The state-of-the-art approach for sequence modeling is the transformer architecture, which excels at capturing dependencies across sequence elements through self-attention. We therefore design \design's predictor as a dense transformer that:
-\begin{enumerate}[leftmargin=*, nosep]
-    \item \textbf{Encodes expert history} as a sequence of layer-expert pairs, treating each routing decision as a token in a sequence
-    \item \textbf{Learns cross-layer dependencies} through self-attention, capturing the complex patterns that determine how early-layer routing influences later-layer expert selection
-    \item \textbf{Predicts multiple layers ahead} (horizon $h=3$) to provide sufficient prefetch lead time for hiding I/O latency behind computation
-\end{enumerate}
-
-This principled design---grounded in information-theoretic analysis---distinguishes \design from ad-hoc predictors that lack theoretical justification. By framing expert prediction as sequence modeling, we can achieve prediction accuracies approaching the 4.11-bit theoretical limit, enabling the proactive prefetching needed to eliminate the I/O bottleneck in MoE inference.
-Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. To validate this claim, we evaluate cross-domain generalization: training \design on traces from one domain and testing on a completely different domain. Our six domains span diverse task types---factual question answering (Natural Questions), reading comprehension (SQuAD), mathematical reasoning (GSM8K), code generation (HumanEval), instruction following (Alpaca), and language modeling (WikiText)---ensuring that any observed generalization cannot be attributed to superficial input similarities (from here on we use the following shorthand for domain names: D1=NQ, D2=SQuAD, D3=GSM8K, D4=HumanEval, D5=Alpaca, D6=WikiText.).
+Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. To validate this, we evaluate cross-domain generalization across six diverse domains: Natural Questions (D1), SQuAD (D2), GSM8K (D3), HumanEval (D4), Alpaca (D5), and WikiText (D6).
 
 
 \Cref{fig:cross_domain_transfer} visualizes the complete $6\times6$ transfer matrix for DeepSeek-MoE: prediction accuracy remains consistently high (67--98\%) across all 36 train-test domain pairs. Even the most challenging transfers (e.g., training on code and testing on math) achieve over 70\% accuracy. 
