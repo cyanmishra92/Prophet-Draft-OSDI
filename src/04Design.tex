@@ -15,6 +15,9 @@ Existing systems employ cross-layer information through various mechanisms: FATE
 
 \design differs in three key aspects: (1)~\textbf{Information-theoretic grounding:} Our analysis in \Cref{sec:Motivation} establishes that 2.59 bits (63\%) of predictive information comes from the 3-layer expert history---providing principled justification for context window selection rather than ad-hoc tuning. (2)~\textbf{Learned sequence modeling:} Rather than fixed heuristics, we train a dense transformer to learn complex routing dependencies, achieving 86\% prediction accuracy compared to 12.3\% for frequency-based baselines. (3)~\textbf{Confidence-calibrated prefetching:} Prediction confidence scores enable tiered cache placement, maximizing GPU memory utilization for high-certainty predictions.
 
+\noindent\textbf{Unified vs. Layer-Group-Aware Design:}
+Recent work~\cite{prescope} proposes that MoE layers decompose into input, middle, and output groups with distinct routing characteristics, motivating per-layer-group predictors. However, our information-theoretic analysis (\Cref{sec:Motivation}) reveals that cross-layer mutual information is uniform across layer positions: the predictive relationship between layers $(\ell, \ell+h)$ is equally strong whether $\ell$ is early, middle, or late. This uniformity arises because routing decisions reflect progressive token transformation---a process governed by consistent architectural mechanisms throughout the network. A unified predictor captures these network-wide dependencies while learning transferable patterns (67--98\% cross-domain accuracy), whereas layer-group designs require $3\times$ the parameters while fragmenting cross-group information flow.
+
 \begin{table}[t]
 \centering
 \small

@@ -76,6 +76,9 @@ The power-law exponent $\alpha$ also provides insight into scalability: higher $
 \subsection{Cross-Layer Routing Dependencies}
 Beyond popularity patterns, we examine whether expert routing exhibits temporal structure across layers. Using mutual information analysis, we quantify how much knowing recent routing history reduces uncertainty about future expert selections. The key finding: cross-layer routing exhibits 0.62 bits of mutual information, meaning knowledge of recent expert selections makes future selections 54\% more predictable than random chance.
 
+\noindent\textbf{Uniformity Across Layer Positions.}
+A natural question is whether cross-layer dependencies vary by layer position---i.e., whether early, middle, and late layers exhibit fundamentally different routing behaviors that would motivate layer-group-specific predictors. Our analysis reveals the opposite: mutual information between layers $(\ell, \ell+h)$ remains stable regardless of whether $\ell$ falls in early, middle, or late network positions. This uniformity suggests that routing patterns reflect the progressive transformation of token representations---a consistent architectural mechanism rather than layer-position-specific behaviors. Consequently, a unified predictor that captures network-wide dependencies is both simpler and more principled than fragmented layer-group designs.
+
 Prior systems such as FATE~\cite{fate} and AdapMoE~\cite{adapmoe} employ cross-layer information through heuristic gates or single-layer lookahead. However, these approaches lack theoretical grounding for their design choices. Our information-theoretic analysis reveals \textit{why} cross-layer context matters and \textit{how much} information each source provides.
 
 \noindent\textbf{Information Budget.} For a model with 128 experts, maximum entropy is 7.00 bits. Our analysis reveals 4.11 bits (59\%) are exploitable for prediction, decomposed as follows:
