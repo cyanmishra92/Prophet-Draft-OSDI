@@ -16,13 +16,13 @@ However, this computational efficiency creates a severe memory paradox. While co
 \centering
 \includegraphics[width=\linewidth]{figs/moe_IO_benchmark_H100.pdf}
 \vspace{-10pt}
-\caption{I/O-to-compute profiling for Switch and Qwen models across batch sizes shows that host/device I/O and memory movement dominate execution time.}
+\caption{I/O-to-compute breakdown for MoE inference at batch size 1. Expert transfer (red) dominates execution time across all five evaluation models, consuming 35--92\% of total latency.}
 \label{fig:io_bottleneck}
 \vspace{-10pt}
 \end{figure}
 
 \noindent\textbf{The Memory Bandwidth Crisis.}
-Previous works~\cite{pregated,promoe, expertflow, hobbit, fate} and our empirical analysis, depicted in \Cref{fig:io_bottleneck}, reveal that the inference performance is dominated by expert loading rather than computation. While \Cref{fig:io_bottleneck} profiles Switch Transformer and Qwen1.5-MoE (78--96\% I/O), larger architectures exhibit even more severe bottlenecks: our  profiling reveals that GPT-OSS-20B spends 92.2\% of inference time on expert transfer, Mixtral-8x7B spends 89.3\%, and DeepSeek-MoE-16B spends 74.0\%. The pronounced I/O--compute imbalance~\cite{zadouri2023pushing, doucet2025harmoeny} leads to GPU underutilization~\cite{zhou2025floe} and makes expert loading the principal determinant of latency.
+Previous works~\cite{pregated,promoe, expertflow, hobbit, fate} and our empirical analysis reveal that MoE inference performance is dominated by expert loading rather than computation. \Cref{fig:io_bottleneck} profiles all five evaluation models at batch size 1: GPT-OSS-20B spends 92.2\% of inference time on expert transfer, Mixtral-8x7B spends 89.3\%, DeepSeek-MoE-16B spends 74.0\%, Qwen3-30B spends 64.8\%, and even the smallest model (Qwen1.5-MoE) spends 35.5\%. The pronounced I/O--compute imbalance~\cite{zadouri2023pushing, doucet2025harmoeny} leads to GPU underutilization~\cite{zhou2025floe} and makes expert loading the principal determinant of latency.
 
 \noindent\textbf{Two Approaches to the Memory Challenge.}
 Two strategies address expert memory constraints, each with fundamental limitations. \textit{Full GPU deployment} distributes all experts across multiple GPUs, requiring 8--16+ devices for large models while leaving most experts idle due to sparse activation---a cost-prohibitive approach where expensive hardware sits underutilized. \textit{On-demand loading} streams experts from CPU memory or SSD as needed, enabling single-GPU deployment but suffering the I/O penalties shown in \Cref{fig:io_bottleneck}: each expert transfer incurs 13$\times$--15$\times$ latency overhead compared to computation, making I/O the dominant cost. 
