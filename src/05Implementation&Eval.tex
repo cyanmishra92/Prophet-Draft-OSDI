@@ -27,7 +27,7 @@ We evaluate on five production MoE architectures representing the current state-
 We evaluate across six diverse benchmarks: GSM8K~\cite{gsm8k} (mathematical reasoning), HumanEval~\cite{humaneval} (code generation), WikiText~\cite{wikitext} (language modeling), Alpaca~\cite{alpaca} (instruction following), SQuAD~\cite{squad} (reading comprehension), and Natural Questions~\cite{googleNatural} (open-domain QA). This diversity ensures evaluation covers both structured tasks (math, code) and open-ended generation (instructions, QA).
 
 \noindent\textbf{Baselines.}
-We compare against five approaches: (1) \textit{On-Demand Loading}---loads experts reactively when routing decisions are made, representing the default approach in memory-constrained deployments; (2) \textit{LRU Caching}---maintains a cache of recently-used experts without prediction; (3) \textit{Expert-Parallel (EP) Upper Bound}---an idealized scenario where all experts are GPU-resident with zero I/O overhead (achievable via multi-GPU deployment or hypothetically infinite single-GPU memory), representing the performance ceiling; (4) \textit{ProMoE}~\cite{promoe}---stride-based prefetching assuming periodic access patterns; and (5) \textit{ExpertFlow}~\cite{expertflow}---token-distribution-aware expert placement with adaptive loading. All baselines are faithfully reimplemented and evaluated under identical hardware constraints.
+We compare against seven approaches: (1) \textit{On-Demand Loading}---loads experts reactively when routing decisions are made; (2) \textit{LRU Caching}---maintains a cache of recently-used experts without prediction; (3) \textit{Expert-Parallel (EP)}---all experts GPU-resident (performance ceiling); (4) \textit{ProMoE}~\cite{promoe}---stride-based prefetching; (5) \textit{ExpertFlow}~\cite{expertflow}---token-distribution-aware loading; (6) \textit{FATE}~\cite{fate}---cross-layer gate prediction with confidence filtering, faithfully reimplemented; and (7) \textit{PreScope}~\cite{prescope}---layer-group-aware MLPs with hidden-state prediction, analytically modeled using optimistic assumptions based on reported 94\% Top-4 accuracy (released October 2025, no public code). All baselines evaluated under identical hardware constraints.
 
 \noindent\textbf{Complementary Optimizations.}
 Prophet focuses on prediction-driven prefetching and is orthogonal to other MoE optimization strategies. CPU/GPU co-execution systems~\cite{cao2025moe, ktransformers} 
@@ -105,7 +105,7 @@ Async prefetch & 0.7ms & 0 & Overlapped \\
 \subsection{Latency-Critical Evaluation}
 \label{subsec:latency}
 
-Prophet targets latency-critical single-request inference (batch size 1), where each token's time-to-first-expert directly impacts user-perceived latency. We evaluate Prophet against five baselines: On-Demand loading, LRU caching, ExpertFlow, ProMoE, and Expert-Parallel (EP) as an upper bound.
+Prophet targets latency-critical single-request inference (batch size 1), where each token's time-to-first-expert directly impacts user-perceived latency. We evaluate Prophet against seven baselines: On-Demand loading, LRU caching, ExpertFlow, ProMoE, FATE, PreScope, and Expert-Parallel (EP) as an upper bound.
 
 \begin{figure*}[t]
 \centering
@@ -122,8 +122,8 @@ Prophet targets latency-critical single-request inference (batch size 1), where 
 \end{subfigure}
 \vspace{-5pt}
 \caption{End-to-end latency analysis at batch size 1 with 4,096-token context. (a) Prophet (gold) achieves 1.53--10.38$\times$ TPOT speedup over On-Demand; hatched portion shows 2\% miss penalty. (b) Prophet maintains tight P99.9/P50 ratio (1.05--1.15$\times$) versus %baseline's high variance (1.50--1.75$\times$)., 
-enabling predictable SLO compliance. 
-\textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}.}
+enabling predictable SLO compliance.
+\textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
 \label{fig:latency_combined}
 \end{figure*}
 
@@ -150,20 +150,20 @@ Prophet's TPOT includes a small miss penalty (hatched portion in \Cref{fig:tpot_
 \label{fig:context}
 \end{subfigure}
 \vspace{-5pt}
-\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}.}
+\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
 \label{fig:memory_combined}
 \end{figure*}
 
 \noindent\textbf{Memory Efficiency and Context Extension.}
 \Cref{fig:memory_breakdown} decomposes memory usage by component across all systems. Prophet reduces expert memory by 70\% across all models: Qwen1.5-MoE from 6.0GB to 1.8GB, DeepSeek from 16.0GB to 4.8GB, GPT-OSS from 19.2GB to 5.8GB, Qwen3 from 32.0GB to 9.6GB, and Mixtral from 10.4GB to 3.1GB. This freed memory is reallocated to KV cache, enabling longer context support. Prophet's 34MB predictor overhead is negligible ($<$0.1\% of total memory).
 
-\Cref{fig:context} shows the maximum context length achievable within a fixed 640GB memory budget. Prophet enables dramatic context extension: Qwen1.5-MoE from 32K to 131K tokens (4$\times$), DeepSeek from 16K to 131K (8$\times$), and GPT-OSS/Qwen3/Mixtral from 8K to 65K (8$\times$). Notably, EP---while achieving the lowest latency---has the smallest context capacity (4--16K tokens) because it requires all experts to be GPU-resident. Prophet achieves the best of both worlds: near-EP latency with the highest context capacity.
+\Cref{fig:context} shows the maximum context length achievable within a fixed 640GB memory budget. Prophet enables dramatic context extension: Qwen1.5-MoE from 32K to 131K tokens (4$\times$), DeepSeek from 16K to 131K (8$\times$), and GPT-OSS/Qwen3/Mixtral from 8K to 65K (8$\times$). Notably, EP---while achieving the lowest latency---has the smallest context capacity (4--16K tokens) because it requires all experts to be GPU-resident. Prophet achieves the best of both worlds: near-EP latency with the highest context capacity. Compared to PreScope, Prophet achieves 1.2--1.8$\times$ higher context capacity despite similar TPOT. PreScope's Top-k prediction requires caching $\sim$2$\times$ more experts to achieve comparable hit rates, leaving less memory for KV cache. This advantage scales with expert size: Mixtral (1.3GB/expert) shows 1.78$\times$ improvement versus 1.23$\times$ for Qwen1.5 (100MB/expert).
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figs/fig4_oi_vs_tpot.pdf}
 \vspace{-15pt}
-\caption{Operational Intensity vs. TPOT showing Prophet shifts all models toward the compute-bound regime (OI $>$ 1). Baseline models cluster at low OI (memory-bound); Prophet increases OI by 5.1--9.3$\times$. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}.}
+\caption{Operational Intensity vs. TPOT showing Prophet shifts all models toward the compute-bound regime (OI $>$ 1). Baseline models cluster at low OI (memory-bound); Prophet increases OI by 5.1--9.3$\times$. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
 \label{fig:oi_tpot}
 \end{figure}
 

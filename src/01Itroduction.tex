@@ -45,7 +45,7 @@ To address these challenges, this paper introduces \design, a neural expert pref
 
 \noindent$\bullet$ \textbf{Cross-layer neural prediction:} A learned neural predictor that captures cross-layer routing dependencies, achieving 80--89\% prediction accuracy through dense transformer architecture with layer encoding.
 
-\noindent$\bullet$ \textbf{Complete inference system:} An end-to-end system that combines neural prediction with confidence-guided cache placement, achieving $1.5\times$--$10.4\times$ TPOT speedups through proactive expert loading without model modifications.
+\noindent$\bullet$ \textbf{Complete inference system:} An end-to-end system achieving $1.5\times$--$10.4\times$ TPOT speedups, matching state-of-the-art predictors (FATE, PreScope) while enabling 1.2--1.8$\times$ longer contexts through efficient expert caching.
 
 \noindent$\bullet$ \textbf{Cross-architecture and cross-domain evaluation:} Comprehensive evaluation across five production MoE architectures (Mixtral-8x7B, Qwen1.5-MoE-A2.7B, Qwen3-30B, DeepSeek-MoE-16B, and GPT-OSS-20B) and six datasets, demonstrating robust cross-domain generalization where prediction accuracy remains 67--98\% across all domain pairs.
 
