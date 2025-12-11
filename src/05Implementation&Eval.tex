@@ -79,21 +79,23 @@ We define prediction accuracy as recall@k: for each token, we measure whether Pr
 \begin{table}[h]
 \centering
 \small
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Model} & \textbf{Top-1 Acc.} & \textbf{Recall@k} & \textbf{k} & \textbf{Random} \\
 \midrule
 Qwen1.5-MoE (M1) & 80.4\% & 94.2\% & 4 & 6.7\% \\
-DeepSeek (M2) & 88.6\% & 96.8\% & 6 & 9.4\% \\
-GPT-OSS (M3) & 86.6\% & 95.1\% & 4 & 12.5\% \\
-Qwen3 (M4) & 80.4\% & 93.7\% & 8 & 6.3\% \\
-Mixtral (M5) & 82.4\% & 91.3\% & 2 & 25.0\% \\
+DeepSeek (M2)    & 88.6\% & 96.8\% & 6 & 9.4\% \\
+GPT-OSS (M3)     & 86.6\% & 95.1\% & 4 & 12.5\% \\
+Qwen3 (M4)       & 80.4\% & 93.7\% & 8 & 6.3\% \\
+Mixtral (M5)     & 82.4\% & 91.3\% & 2 & 25.0\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \caption{Prediction accuracy breakdown. Top-1 measures if the single highest-probability prediction is correct; Recall@k measures if all router-selected experts are in Prophet's top-k predictions. Random baseline = k/N where N is total experts.}
-%All models substantially exceed random baselines by 6--15$\times$.}
 \label{tab:accuracy_detailed}
 \end{table}
+
 
 Prophet achieves 80--89\% Top-1 accuracy across all models, with Recall@k exceeding 91\% in all cases. This accuracy directly reflects our information-theoretic analysis: with $\sim$59\% of maximum entropy exploitable and 63\% of that coming from cross-layer expert history, Prophet's transformer predictor effectively translates exploitable information into actionable predictions. The higher Recall@k values (vs Top-1) indicate that Prophet's probability ranking is well-calibrated: even when the top-1 prediction is incorrect, the true experts typically appear in the top-k predictions. This property is crucial for effective prefetching, where coverage matters more than strict precision.
 
@@ -103,23 +105,26 @@ Prophet achieves 80--89\% Top-1 accuracy across all models, with Recall@k exceed
 \Cref{fig:cross_domain} presents zero-shot cross-domain transfer matrices for all five models. Each off-diagonal cell represents a true hold-out evaluation: the predictor is trained \textit{exclusively} on domain $X$ and tested on domain $Y$ with zero data overlap. This zero-shot domain transfer %(e.g., training on code generation and testing on mathematical reasoning) 
 represents the worst-case generalization scenario. Prediction accuracy remains 67--98\% across all 180 train-test domain pairs, with only 3--8\% degradation vs. in-domain. This confirms that Prophet learns model-intrinsic routing structure: how transformer layers progressively transform representations rather than dataset-specific lexical or semantic patterns.
 
-\begin{table}[]
+\begin{table}[h]
 \centering
 \small
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{Component} & \textbf{Latency} & \textbf{Memory} & \textbf{Notes} \\
 \midrule
-Forward pass & 0.8ms & 32MB & 8.4M params \\
-Context encoding & 0.5ms & 2MB & Reused across tokens \\
-Async prefetch & 0.7ms & 0 & Overlapped \\
+Forward pass     & 0.8ms & 32MB & 8.4M params \\
+Context encoding & 0.5ms & 2MB  & Reused across tokens \\
+Async prefetch   & 0.7ms & 0    & Overlapped \\
 \midrule
-\textbf{Total} & \textbf{2.0ms} & \textbf{34MB} & <1\% overhead \\
+\textbf{Total}   & \textbf{2.0ms} & \textbf{34MB} & <1\% overhead \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \caption{Predictor overhead analysis. Total overhead is negligible compared to baseline TPOT (1,119--6,123ms).}
 \label{tab:overhead}
 \end{table}
+
 
 \noindent\textbf{Predictor Overhead.}
 \Cref{tab:overhead} breaks down Prophet's runtime overhead. The predictor forward pass takes 0.8ms with 32MB for 8.4M parameters; context encoding adds 0.5ms (reused across tokens); and async prefetch coordination adds 0.7ms (overlapped with compute). The total 2.0ms overhead represents $<$1\% of baseline TPOT for all models. One-time training cost (3.5--4.5 hours on A100) amortizes across all subsequent inference runs. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}.

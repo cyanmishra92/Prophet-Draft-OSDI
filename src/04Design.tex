@@ -17,27 +17,53 @@ Existing systems employ cross-layer information through various mechanisms: FATE
 \noindent\textbf{Unified vs. Layer-Group-Aware Design:}
 Recent work~\cite{prescope} proposes that MoE layers decompose into input, middle, and output groups with distinct routing characteristics, motivating per-layer-group predictors. However, our information-theoretic analysis (\Cref{sec:Motivation}) reveals that cross-layer mutual information is uniform across layer positions: the predictive relationship between layers $(\ell, \ell+h)$ is equally strong whether $\ell$ is early, middle, or late. This uniformity arises because routing decisions reflect progressive token transformation---a process governed by consistent architectural mechanisms throughout the network. A unified predictor captures these network-wide dependencies while learning transferable patterns (67--98\% cross-domain accuracy), whereas layer-group designs require $3\times$ the parameters while fragmenting cross-group information flow.
 
+%%%%%%%%%%%%
+% \begin{table}[t]
+% \centering
+% \small
+% \begin{tabular}{lccc}
+% \toprule
+% \textbf{System} & \textbf{Prediction Method} & \textbf{Context} & \textbf{Top-1 Acc.} \\
+% \midrule
+% ProMoE~\cite{promoe} & LRU-based & Current layer & $\sim$65\% \\
+% PreGated~\cite{pregated} & Router lookahead & 1 layer & $\sim$70\% \\
+% FATE~\cite{fate} & Cross-layer gates & Heuristic & $\sim$72\% \\
+% AdapMoE~\cite{adapmoe} & Single lookahead & 1 layer & $\sim$74\% \\
+% PreScope~\cite{prescope} & MLP (LLaPor) & 1 layer & N/R$^\dagger$ \\
+% \midrule
+% \textbf{\design} & Neural transformer & 3 layers & \textbf{86\%} \\
+% \bottomrule
+% \end{tabular}
+% \vspace{-5pt}
+% \caption{Comparison with prior predictive approaches. \design's learned multi-layer context achieves higher prediction accuracy than heuristic and single-layer methods. Baseline accuracies measured under identical conditions using our reimplementation. $^\dagger$PreScope reports 94\% Top-4 accuracy but not Top-1; their layer-group-aware MLP uses single-layer context ($h$=1) without cross-domain evaluation.}
+% \label{tab:predictor_comparison}
+% \vspace{-10pt}
+% \end{table}
+
 \begin{table}[t]
 \centering
 \small
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{System} & \textbf{Prediction Method} & \textbf{Context} & \textbf{Top-1 Acc.} \\
 \midrule
-ProMoE~\cite{promoe} & LRU-based & Current layer & $\sim$65\% \\
-PreGated~\cite{pregated} & Router lookahead & 1 layer & $\sim$70\% \\
-FATE~\cite{fate} & Cross-layer gates & Heuristic & $\sim$72\% \\
-AdapMoE~\cite{adapmoe} & Single lookahead & 1 layer & $\sim$74\% \\
-PreScope~\cite{prescope} & MLP (LLaPor) & 1 layer & N/R$^\dagger$ \\
+ProMoE~\cite{promoe}      & LRU-based           & Current layer & $\sim$65\% \\
+PreGated~\cite{pregated}  & Router lookahead    & 1 layer       & $\sim$70\% \\
+FATE~\cite{fate}          & Cross-layer gates   & Heuristic     & $\sim$72\% \\
+AdapMoE~\cite{adapmoe}    & Single lookahead    & 1 layer       & $\sim$74\% \\
+PreScope~\cite{prescope}  & MLP (LLaPor)        & 1 layer       & N/R$^\dagger$ \\
 \midrule
-\textbf{\design} & Neural transformer & 3 layers & \textbf{86\%} \\
+\textbf{\design}          & Neural transformer  & 3 layers      & \textbf{86\%} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \vspace{-5pt}
 \caption{Comparison with prior predictive approaches. \design's learned multi-layer context achieves higher prediction accuracy than heuristic and single-layer methods. Baseline accuracies measured under identical conditions using our reimplementation. $^\dagger$PreScope reports 94\% Top-4 accuracy but not Top-1; their layer-group-aware MLP uses single-layer context ($h$=1) without cross-domain evaluation.}
 \label{tab:predictor_comparison}
 \vspace{-10pt}
 \end{table}
+
 
 %%%%%%%%%%%%
 \subsubsection{Formalization and Architecture Overview}
@@ -144,7 +170,7 @@ The two-tier hierarchy maps naturally to GPU-host memory organization: L1 cache 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\linewidth]{figs/ProphetDesign.pdf.pdf}
+\includegraphics[width=0.9\linewidth]{figs/ProphetDesign.pdf}
 \caption{Overall design of Prophet: For every layer, we run the expert prediction (\circled{1}) which goes for the expert selection logic to find the expert in the cache (\circled{2a}). If a hit, the expert is loaded to the LLM (\circled{3}); otherwise, upon a miss, the expert is looked up in the host memory (\circled{2b}) and unique experts are selected (\circled{3b}) and loaded (\circled{4b}) to the GPU and LLM (\circled{3}).}
 \vspace{-10pt}
 \label{fig:overallDesign}
