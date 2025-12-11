@@ -186,14 +186,14 @@ Prophet's TPOT includes a small miss penalty (hatched portion in \Cref{fig:tpot_
 \centering
 \includegraphics[width=\linewidth]{figs/fig4_oi_vs_tpot.pdf}
 \vspace{-15pt}
-\caption{Operational Intensity vs. TPOT showing Prophet shifts all models toward the compute-bound regime (OI $>$ 1). Baseline models cluster at low OI (memory-bound); Prophet increases OI by 5.1--9.3$\times$. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
+\caption{Operational Intensity vs. TPOT showing Prophet shifts all models toward the compute-bound regime (OI $>$ 1). Prophet increases OI by 5.1--13.8$\times$ over On-Demand. PreScope exhibits the lowest OI due to its Top-4 prediction strategy (4$\times$ bandwidth overhead). \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
 \label{fig:oi_tpot}
 \end{figure}
 
 \noindent\textbf{Operational Intensity: The Systems Insight.}
-To understand \textit{why} Prophet achieves these speedups, we analyze Operational Intensity (OI)---the ratio of compute operations to memory transfers. \Cref{fig:oi_tpot} reveals that all baseline systems exhibit OI $<$ 0.7, indicating severe memory bottlenecks: On-Demand ranges from 0.11 (Mixtral) to 0.38 (Qwen3), with LRU, ExpertFlow, and ProMoE providing incremental improvements but remaining firmly memory-bound.
+To understand \textit{why} Prophet achieves these speedups, we analyze Operational Intensity (OI)---the ratio of compute operations to memory transfers. \Cref{fig:oi_tpot} reveals that On-Demand exhibits low OI (0.11--0.38), with LRU, ExpertFlow, and ProMoE providing incremental improvements but remaining memory-bound. Notably, PreScope exhibits the \textit{lowest} OI among all systems (0.04--0.12)---despite achieving good TPOT, its Top-4 prediction strategy transfers 4$\times$ more experts than necessary, severely penalizing bandwidth efficiency.
 
-Prophet fundamentally shifts the execution regime. OI increases by 5.1--9.3$\times$: DeepSeek improves from 0.18 to 1.67 (9.3$\times$), GPT-OSS from 0.17 to 1.31 (7.7$\times$), Mixtral from 0.11 to 0.61 (5.5$\times$), Qwen3 from 0.38 to 1.99 (5.2$\times$), and Qwen1.5 from 0.26 to 1.33 (5.1$\times$). Four of five models now operate in the compute-bound regime (OI $>$ 1), with only Mixtral remaining below 1.0 due to its unique 8$\times$7B architecture requiring more experts per token. This shift from memory-bound to compute-bound execution enables dramatically better GPU utilization---the GPU spends time computing rather than waiting for data transfers.
+Prophet fundamentally shifts the execution regime. OI increases by 5.1--13.8$\times$ over On-Demand: Mixtral improves from 0.11 to 1.52 (13.8$\times$), DeepSeek from 0.18 to 1.67 (9.3$\times$), GPT-OSS from 0.17 to 1.31 (7.7$\times$), Qwen3 from 0.38 to 1.99 (5.2$\times$), and Qwen1.5 from 0.26 to 1.33 (5.1$\times$). All five models now operate in the compute-bound regime (OI $>$ 1). This shift from memory-bound to compute-bound execution enables dramatically better GPU utilization---the GPU spends time computing rather than waiting for data transfers.
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
 \subsection{Throughput-Critical Evaluation}
