@@ -31,7 +31,7 @@ Two distinct scaling philosophies have emerged:
 
 \textbf{Many Small Experts:} GShard (2048 experts) and DeepSeek-V3 (257 experts) employ numerous smaller experts, enabling fine-grained specialization at the cost of increased routing complexity.
 
-\subsection{Activation Density and Efficiency Trade-offs}
+\subsection{Activation Density and Efficiency}
 
 Activation density—the percentage of parameters used per forward pass—critically impacts inference efficiency. Low activation density (0.78\% in Switch Transformer) maximizes parameter efficiency but requires sophisticated routing. Higher density (27.7\% in Mixtral-8x22B) simplifies deployment but reduces the efficiency gains from sparse activation.
 

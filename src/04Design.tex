@@ -3,7 +3,7 @@
 \label{sec:design}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Prophet integrates two key components grounded in our information-theoretic analysis (\Cref{sec:Motivation}): a \textbf{neural expert predictor} that forecasts expert needs multiple layers ahead by exploiting cross-layer routing dependencies, and a \textbf{prediction-guided hierarchical cache} that maps prediction confidence to cache tier placement. Prophet operates transparently at inference time without requiring modifications to pre-trained MoE models.
+Prophet integrates two key components grounded in our information-theoretic analysis (\Cref{sec:Motivation}): a \textbf{neural expert predictor} that forecasts expert needs multiple layers ahead by exploiting cross-layer routing dependencies, and a \textbf{prediction-guided hierarchical cache} that maps prediction confidence to cache tier placement. Prophet operates transparently at inference time without requiring modifications to MoE models.
 
 
 \subsection{Neural Expert Prediction}
@@ -84,13 +84,14 @@ at layer $\ell$, we generate predictions for all tokens in the same positions si
 \subsubsection{Neural Predictor Architecture and Training}
 \label{subsubsec:training}
 
-\noindent\textbf{Architecture Specification:} The predictor comprises 4 transformer layers with 10 attention heads, model dimension $d_{\text{model}} = 320$, and feed-forward dimension $d_{ff} = 1280$ (8.4M parameters total). These parameters balance prediction accuracy with computational efficiency, keeping overhead below 1\% of expert execution time. Hidden states undergo linear projection before combining with embedded routing history and layer encodings.
+%\noindent\textbf{Architecture Specification:} 
+The predictor comprises 4 transformer layers with 10 attention heads, model dimension $d_{\text{model}} = 320$, and feed-forward dimension $d_{ff} = 1280$ (8.4M parameters total). These parameters balance prediction accuracy with computational efficiency, keeping overhead below 1\% of expert execution time. Hidden states undergo linear projection before combining with embedded routing history and layer encodings.
 
 \noindent\textbf{Architecture Choice:} We employ a transformer rather than simpler architectures (MLP, LSTM) because the routing prediction task is fundamentally a variable-length sequence modeling problem over a multi-layer context window. Self-attention enables the model to learn which layer-to-layer transitions are most predictive for future expert selections---certain cross-layer patterns (e.g., expert-42 at layer 5 correlating with expert-78 at layer 8) may be strongly predictive regardless of intermediate selections. An MLP requires fixed concatenation of all inputs, losing this flexibility and limiting context to single-layer lookahead; an LSTM imposes strict sequential processing that may miss long-range dependencies.
 
 Concurrent work PreScope~\cite{prescope} illustrates these tradeoffs: their MLP-based LLaPor predictor achieves 94\% \textit{Top-4} accuracy with single-layer ($h=1$) context, but does not report Top-1 accuracy or cross-domain transfer. In contrast, Prophet's transformer with 3-layer context achieves 80--89\% \textit{Top-1} accuracy: a stricter metric where only the single highest-probability prediction must be correct, while demonstrating 67--98\% accuracy across 36 cross-domain evaluation pairs (\Cref{sec:Motivation} and \Cref{fig:cross_domain}). The transformer's additional latency (versus an MLP) is justified by both the accuracy improvement and the extended prediction horizon ($h=3$) that provides sufficient lead time to hide expert loading latency.
 
-\noindent\textbf{Training Data Collection:} We collect expert routing traces from pre-trained MoE models processing six diverse datasets (\Cref{sec:Motivation}): Natural Questions, SQuAD, GSM8K, HumanEval, Alpaca, and WikiText. This diversity ensures the predictor learns model-intrinsic routing patterns rather than dataset-specific features. For each forward pass, we record expert selections and hidden states at every layer for each token position.
+\noindent\textbf{Training Data Collection:} We collect expert routing traces from MoE models processing six diverse datasets (\Cref{sec:Motivation}): Natural Questions, SQuAD, GSM8K, HumanEval, Alpaca, and WikiText. This diversity ensures the predictor learns model-intrinsic routing patterns rather than dataset-specific features. For each forward pass, we record expert selections and hidden states at every layer for each token position.
 
 \begin{figure}[t]
 \centering
@@ -104,8 +105,7 @@ Concurrent work PreScope~\cite{prescope} illustrates these tradeoffs: their MLP-
 \noindent\textbf{Training:} We employ a composite loss $\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{classification}} + \lambda_2 \mathcal{L}_{\text{ranking}} + \lambda_3 \mathcal{L}_{\text{confidence}}$, combining cross-entropy for prediction accuracy, ranking loss for probability ordering, and Brier score for confidence calibration. Training uses AdamW with cosine annealing, converging in 3.5--4.5 hours on a single A100. Systematic exploration confirms $c = 3$ and $h = 3$ provide optimal performance (\Cref{fig:predictor_accuracy}), outperforming state-of-the-art~\cite{promoe, pregated,prescope}.% ProMoE~\cite{promoe} and PreGated MoE~\cite{pregated}.
 
 \noindent\textbf{Prediction Accuracy and Overhead:}
-We define prediction accuracy as \textit{top-1 per-token-per-layer} accuracy: for each token $t$ at prediction horizon $h$, we check whether the predicted expert $\hat{e}_t^{(\ell+h)}$ matches the ground-truth expert selection $e_t^{(\ell+h)}$. This strict metric directly corresponds to prefetch utility, i.e., correct predictions enable cache hits, while incorrect predictions waste bandwidth. Across our evaluation, \design achieves 80--89\% top-1 accuracy across the five target architectures at horizon $h=3$.
-%, compared to 0.78--1.56\% random baselines showing over $50\times$ improvement.
+We define prediction accuracy as \textit{top-1 per-token-per-layer} accuracy: for each token $t$ at prediction horizon $h$, we check whether the predicted expert $\hat{e}_t^{(\ell+h)}$ matches the ground-truth expert selection $e_t^{(\ell+h)}$. This strict metric directly corresponds to prefetch utility, i.e., correct predictions enable cache hits, while incorrect predictions waste bandwidth. Across our evaluation, \design achieves 80--89\% top-1 accuracy across the five target architectures at horizon $h=3$, compared to 0.78--1.56\% random baselines showing over $50\times$ improvement.
 The 8.4M-parameter predictor adds $<$1\% latency and $<$2\% memory overhead; detailed breakdown in \Cref{subsec:predictor}. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}.
 %
 %\footnote{\url{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}}.
