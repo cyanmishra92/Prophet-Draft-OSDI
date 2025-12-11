@@ -198,31 +198,28 @@ Prophet fundamentally shifts the execution regime. OI increases by 5.1--13.8$\ti
 \subsection{Throughput-Critical Evaluation}
 \label{subsec:throughput}
 
-While Prophet primarily targets latency-critical BS=1 inference, we evaluate throughput at larger batch sizes and under tensor parallelism to demonstrate broader applicability.
+While Prophet primarily targets latency-critical BS=1 inference, we evaluate throughput scaling to demonstrate broader applicability.
 
-\noindent\textbf{Batch Size Scaling.}
-Prophet's speedup remains stable across batch sizes 1--16, with <5\% relative decrease at larger batches. This stability occurs because Prophet's prediction accuracy is per-token (not batch-dependent), while baselines benefit from incidental expert reuse at larger batches---partially closing the gap but never eliminating Prophet's prediction advantage.
+\noindent\textbf{Deduplication from Power-Law Concentration.}
+The power-law distribution ($\alpha = 1.2$--$2.2$) creates deduplication opportunities in batched inference. When multiple tokens request experts, popular experts are frequently requested by multiple tokens simultaneously. Prophet fetches only \textit{unique} experts per batch rather than duplicates. Unique expert count scales sublinearly: $\mathbb{E}[U(B)] \sim B^{0.932}$; at BS=16, this yields 16\% bandwidth reduction versus naive per-token fetching.
 
-\begin{table}[]
+\noindent\textbf{Bandwidth Efficiency vs. Baselines.}
+\Cref{fig:batch_bandwidth} compares speedup and bandwidth across batch sizes. Prophet's deduplication provides 1.2$\times$ bandwidth reduction over On-Demand at BS=16. The advantage over PreScope is more pronounced: PreScope's Top-4 prediction transfers 4$\times$ more experts per token without deduplication, requiring 4$\times$ Prophet's bandwidth at equivalent batch sizes (\Cref{fig:batch_bandwidth}b). Prophet maintains 1.4--10$\times$ speedup across BS=1--16 (\Cref{fig:batch_bandwidth}a).
+
+\begin{figure}[t]
 \centering
-\small
-\begin{tabular}{lccc}
-\toprule
-\textbf{Model} & \textbf{BS=1} & \textbf{BS=4} & \textbf{BS=16} \\
-\midrule
-GPT-OSS-20B & 10.4$\times$ & 10.1$\times$ & 9.9$\times$ \\
-Mixtral-8x7B & 8.0$\times$ & 7.7$\times$ & 7.5$\times$ \\
-DeepSeek-MoE-16B & 3.6$\times$ & 3.5$\times$ & 3.4$\times$ \\
-Qwen3-30B & 2.7$\times$ & 2.6$\times$ & 2.5$\times$ \\
-Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.4$\times$ \\
-\bottomrule
-\end{tabular}
-\caption{Speedup vs. batch size.}% Prophet's advantage is stable across batch sizes.}
-\label{tab:batch}
-\end{table}
+\includegraphics[width=\linewidth]{figs/fig6_batch_bandwidth.pdf}
+\vspace{-15pt}
+\caption{Batch size scaling: (a) Speedup remains stable at 1.4--10$\times$. (b) Prophet's bandwidth normalized to On-Demand (with deduplication) vs.\ PreScope (no deduplication, 4$\times$ experts).}
+\label{fig:batch_bandwidth}
+\vspace{-10pt}
+\end{figure}
+
+\noindent\textbf{When Prediction Matters Less.}
+At larger batch sizes (BS$>$16), popular experts (top 20\% handling 75\% of decisions per power-law) remain GPU-resident across iterations. Cache management and eviction policies dominate over prediction accuracy---an orthogonal concern beyond this paper's scope.
 
 \noindent\textbf{Multi-GPU Scaling.}
-Production deployments often use tensor parallelism (TP) to distribute models across GPUs. Prophet's speedup is preserved under tensor parallelism; relative advantage remains within 2\% across TP=1--8. GPT-OSS-20B maintains 10.4$\times$/10.4$\times$/10.3$\times$/10.2$\times$ speedup at TP=1/2/4/8 respectively; Mixtral maintains 8.0$\times$/8.0$\times$/7.9$\times$/7.8$\times$; and similar stability holds for other models. In TP configurations, expert loading becomes a per-GPU operation; Prophet's predictions remain accurate because routing decisions are determined by model architecture, not parallelization strategy.
+Prophet's advantage is preserved under tensor parallelism (TP); relative speedup remains within 2\% across TP=1--8. Expert loading becomes a per-GPU operation, but routing decisions are determined by model architecture, not parallelization strategy.
 
 % \noindent\textbf{Continuous Batching Compatibility.}
 % Prophet's per-token routing history naturally extends to continuous batching frameworks (vLLM, TGI) that dynamically schedule requests. Per-request history persists across batch iterations, and predictions update as new tokens generate. We leave full integration with production serving frameworks for future work, noting that Prophet's predictor is compatible with their iteration-level batching and that the power-law expert concentration ensures popular experts remain cached across request boundaries.
