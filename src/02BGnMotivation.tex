@@ -81,21 +81,34 @@ Prior systems such as FATE~\cite{fate} and AdapMoE~\cite{adapmoe} employ cross-l
 %plug-in 
 entropy estimators over 37,200 execution traces ($\sim$3.34M expert selections) with Miller-Madow bias correction. Bootstrap resampling (1000 iterations) yields 95\% confidence intervals; the pairwise MI estimate is $I(E^{(\ell)}; E^{(\ell+1)}) = 0.62 \pm 0.04$ bits.
 
-\noindent\textbf{Information Budget.} For a model with 128 experts, maximum entropy is 7.00 bits. When we expand beyond pairwise MI to incorporate a 3-layer context window with hidden states, our analysis reveals 4.11 bits (59\%) are exploitable for prediction, decomposed as:% follows:
+\noindent\textbf{Information Budget.} Maximum entropy scales as $\log_2(N)$ bits for $N$ experts---ranging from 3 bits for Mixtral (8 experts) to 7 bits for Qwen3 (128 experts). When we expand beyond pairwise MI to incorporate a 3-layer context window with hidden states, our analysis reveals that approximately 59\% of maximum entropy is consistently exploitable for prediction across all five evaluation architectures, decomposed as:% follows:
 % \begin{itemize}[leftmargin=*, nosep]
     % \item 
-    \textbf{Expert context from preceding 3 layers (2.59 bits, 63\%):} The sequence of recently-selected experts provides the dominant predictive signal. When a token routes through experts $e_1 \rightarrow e_2 \rightarrow e_3$ across layers, this trajectory strongly constrains which experts will be selected next.
-    %\item 
-    \textbf{Hidden states (0.76 bits, 18\%):} Token representations carry routing-relevant information that correlates with expert selection.
-    %\item 
-    \textbf{Attention patterns (0.75 bits, 18\%):} Attention weights reflect semantic structure that influences routing decisions.
+    \textbf{Expert context from preceding 3 layers (63\% of exploitable):} The sequence of recently-selected experts provides the dominant predictive signal. When a token routes through experts $e_1 \rightarrow e_2 \rightarrow e_3$ across layers, this trajectory strongly constrains which experts will be selected next.
+    %\item
+    \textbf{Hidden states (18\% of exploitable):} Token representations carry routing-relevant information that correlates with expert selection.
+    %\item
+    \textbf{Attention patterns (18\% of exploitable):} Attention weights reflect semantic structure that influences routing decisions.
 % \end{itemize}
 The temporal structure exhibits layer-dependent specialization: early layers show syntactic correlations with surface-level patterns, while deeper layers exhibit semantic dependencies spanning longer contexts~\cite{liu2024fantastic, rajbhandari2022deepspeed, zhang2024harder}. This hierarchical nature motivates prediction architectures that capture dependencies across multiple layers simultaneously.
 
-
+\noindent\textbf{Architectural Variations and Effective Entropy.}
+The theoretical maximum $\log_2(N)$ assumes uniform expert selection---an idealization rarely achieved in practice. Three architectural factors reduce effective entropy:
+\textit{(1) Top-k routing:} Models like Qwen (top-8) and Mixtral (top-2) select multiple experts per token, but prediction targets the \textit{dominant} expert (highest gating weight), reducing the output space.
+\textit{(2) Shared experts:} Qwen architectures include shared experts that are deterministically activated (zero entropy), leaving only $N_r$ routing experts with uncertainty---e.g., Qwen1.5-MoE has 4 shared + 60 routing experts, so $H_{\max} = \log_2(60) = 5.9$ bits rather than $\log_2(64)$.
+\textit{(3) Power-law concentration:} The heavy-tailed distribution ($\alpha = 1.2$--$2.2$) yields effective entropy $H_{\text{eff}} = -\sum_i p_i \log_2 p_i \ll \log_2(N)$. With the top 20\% of experts handling 75\% of decisions, even a simple frequency-based prior achieves $\sim$12\% accuracy versus $1/N$ for uniform sampling.
+These factors explain why the exploitable fraction ($\sim$59\%) remains consistent across architectures with 8--128 experts: the \textit{relative} reduction from power-law concentration and cross-layer dependencies is architecture-invariant, even as absolute entropy varies.
 
 \subsection{Implications for Predictor Design}
-The information budget reveals that 63\% of exploitable information (2.59 of 4.11 bits) comes from the \textit{sequential pattern of expert selections} across layers, making expert prediction fundamentally a \textbf{sequence modeling problem}. This insight motivates our transformer-based predictor design (\Cref{sec:design}), which encodes expert history, learns cross-layer dependencies through self-attention, and predicts multiple layers ahead ($h=3$) to provide prefetch lead time.
+The information budget reveals that 63\% of exploitable information comes from the \textit{sequential pattern of expert selections} across layers, making expert prediction fundamentally a \textbf{sequence modeling problem}.
+
+\noindent\textbf{Why Transformers for Expert Prediction.}
+The prediction task is to estimate $P(E^{(\ell+h)} | E^{(\ell)}, E^{(\ell-1)}, \ldots)$---the conditional distribution over experts at layer $\ell+h$ given the routing history. Two factors shape this distribution:
+\textit{(1) Non-uniform prior from power-law:} The marginal $P(E^{(\ell)})$ follows a power-law, creating a ``default'' prediction baseline. A predictor need only learn \textit{deviations} from this prior conditioned on context.
+\textit{(2) Cross-layer conditional structure:} The mutual information $I(E^{(\ell+1)}; E^{(\ell)}) = 0.62$ bits quantifies how much the prior should shift given the previous expert. With 3-layer context, cumulative MI captures expert ``trajectories'' $e_{\ell-2} \rightarrow e_{\ell-1} \rightarrow e_{\ell} \rightarrow ?$ that strongly constrain the next selection.
+A transformer architecture naturally models this: (1) expert embeddings encode the identity of selected experts, (2) positional/layer encoding captures position-specific power-law biases, (3) self-attention learns the conditional dependencies across the context window, and (4) the softmax output directly parameterizes the categorical distribution over experts. This design achieves 80--89\% Top-1 accuracy, translating the 59\% exploitable entropy into actionable predictions.
+
+This insight motivates our transformer-based predictor (\Cref{sec:design}), which encodes expert history, learns cross-layer dependencies through self-attention, and predicts multiple layers ahead ($h=1,2,3$) to provide prefetch lead time.
 
 Critically, these routing patterns are \textbf{model-intrinsic} rather than dataset-dependent. To validate this, we evaluate cross-domain generalization across six diverse domains: Natural Questions (D1), SQuAD (D2), GSM8K (D3), HumanEval (D4), Alpaca (D5), and WikiText (D6).
 

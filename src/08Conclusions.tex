@@ -4,7 +4,7 @@
 
 % Text matter begin
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% 
-Prophet addresses the fundamental memory bandwidth bottleneck constraining practical deployment of MoE models. Through information-theoretic analysis, we established that expert routing contains exploitable structure with power-law distributions and cross-layer dependencies providing upto 59\% of maximum entropy of exploitable information and enabling accurate neural prediction for expert prefetching.
+Prophet addresses the fundamental memory bandwidth bottleneck constraining practical deployment of MoE models. Through information-theoretic analysis, we established that expert routing contains exploitable structure: power-law distributions ($\alpha = 1.2$--$2.2$) and cross-layer dependencies provide up to 59\% of maximum entropy as exploitable information---an architecture-invariant ratio across models with 8--128 experts---enabling accurate neural prediction for expert prefetching.
 
 Building on these insights, \emph{Prophet} combines learned cross-layer prediction (80--89\% accuracy) with confidence-guided hierarchical caching, transforming MoE inference from reactive to predictive memory management. Our evaluation across five production architectures demonstrates $1.5\times$--$10.4\times$ TPOT speedups and $2.4\times$--$19.4\times$ tail latency (P99.9) improvements over on-demand loading, while enabling $4$--$8\times$ longer context lengths within the same memory budget. Critically, prediction accuracy remains 67--98\% across all cross-domain pairs, confirming that Prophet learns model-intrinsic routing patterns rather than dataset-specific features.
 
