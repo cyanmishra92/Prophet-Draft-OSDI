@@ -74,13 +74,36 @@ Before presenting end-to-end results, we establish that Prophet's neural predict
 \end{figure*}
 
 \noindent\textbf{Prediction Accuracy.}
-We define prediction accuracy as recall@k: for each token, we measure whether Prophet's top-k predicted experts contain the actual router-selected expert(s). Prophet achieves 80--89\% prediction accuracy across all models---DeepSeek (88.6\%), GPT-OSS (86.6\%), Mixtral (82.4\%), Qwen3 (80.4\%), and Qwen1.5 (80.4\%)---substantially higher than prior heuristic approaches. Higher accuracy correlates with stronger power-law concentration ($\alpha > 2$), making routing more predictable. Detailed accuracy breakdown (Top-1 vs. Recall@k) is provided in \Cref{app:predictor}.
+We define prediction accuracy as recall@k: for each token, we measure whether Prophet's top-k predicted experts contain the actual router-selected expert(s). \Cref{tab:accuracy_detailed} provides a comprehensive breakdown of prediction accuracy metrics across all evaluated models. We report both Top-1 accuracy (whether the single highest-probability prediction matches ground truth) and Recall@k (whether all k router-selected experts appear in the top-k predictions). Top-1 is a stricter metric that measures precise prediction; Recall@k measures effective prefetching coverage.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{Top-1 Acc.} & \textbf{Recall@k} & \textbf{k} & \textbf{Random} \\
+\midrule
+Qwen1.5-MoE (M1) & 80.4\% & 94.2\% & 4 & 6.7\% \\
+DeepSeek (M2) & 88.6\% & 96.8\% & 6 & 9.4\% \\
+GPT-OSS (M3) & 86.6\% & 95.1\% & 4 & 12.5\% \\
+Qwen3 (M4) & 80.4\% & 93.7\% & 8 & 6.3\% \\
+Mixtral (M5) & 82.4\% & 91.3\% & 2 & 25.0\% \\
+\bottomrule
+\end{tabular}
+\caption{Prediction accuracy breakdown. Top-1 measures if the single highest-probability prediction is correct; Recall@k measures if all router-selected experts are in Prophet's top-k predictions. Random baseline = k/N where N is total experts.}
+%All models substantially exceed random baselines by 6--15$\times$.}
+\label{tab:accuracy_detailed}
+\end{table}
+
+Prophet achieves 80--89\% Top-1 accuracy across all models, with Recall@k exceeding 91\% in all cases. The higher Recall@k values (vs Top-1) indicate that Prophet's probability ranking is well-calibrated: even when the top-1 prediction is incorrect, the true experts typically appear in the top-k predictions. This property is crucial for effective prefetching, where coverage matters more than strict precision.
+
+%Prophet achieves 80--89\% prediction accuracy across all models---DeepSeek (88.6\%), GPT-OSS (86.6\%), Mixtral (82.4\%), Qwen3 (80.4\%), and Qwen1.5 (80.4\%)---substantially higher than prior heuristic approaches. Higher accuracy correlates with stronger power-law concentration ($\alpha > 2$), making routing more predictable. Detailed accuracy breakdown (Top-1 vs. Recall@k) is provided in \Cref{app:predictor}.
 
 \noindent\textbf{Cross-Domain Generalization.}
 \Cref{fig:cross_domain} presents zero-shot cross-domain transfer matrices for all five models. Each off-diagonal cell represents a true hold-out evaluation: the predictor is trained \textit{exclusively} on domain $X$ and tested on domain $Y$ with zero data overlap. This zero-shot domain transfer %(e.g., training on code generation and testing on mathematical reasoning) 
 represents the worst-case generalization scenario. Prediction accuracy remains 67--98\% across all 180 train-test domain pairs, with only 3--8\% degradation vs. in-domain. This confirms that Prophet learns model-intrinsic routing structure: how transformer layers progressively transform representations rather than dataset-specific lexical or semantic patterns.
 
-\begin{table}[t]
+\begin{table}[]
 \centering
 \small
 \begin{tabular}{lccc}
@@ -107,7 +130,7 @@ Async prefetch & 0.7ms & 0 & Overlapped \\
 
 Prophet targets latency-critical single-request inference (batch size 1), where each token's time-to-first-expert directly impacts user-perceived latency. We evaluate Prophet against seven baselines: On-Demand loading, LRU caching, ExpertFlow, ProMoE, FATE, PreScope, and Expert-Parallel (EP) as an upper bound.
 
-\begin{figure*}[t]
+\begin{figure*}[]
 \centering
 \begin{subfigure}[b]{0.48\linewidth}
 \includegraphics[width=\linewidth]{figs/fig1_tpot_breakdown.pdf}
@@ -121,9 +144,9 @@ Prophet targets latency-critical single-request inference (batch size 1), where 
 \label{fig:tail_cdf}
 \end{subfigure}
 \vspace{-5pt}
-\caption{End-to-end latency analysis at batch size 1 with 4,096-token context. (a) Prophet (gold) achieves 1.53--10.38$\times$ TPOT speedup over On-Demand; hatched portion shows 2\% miss penalty. (b) Prophet maintains tight P99.9/P50 ratio (1.05--1.15$\times$) versus %baseline's high variance (1.50--1.75$\times$)., 
+\caption{End-to-end latency at batch size 1 with 4,096-token context. (a) Prophet (gold) achieves 1.53--10.38$\times$ TPOT speedup over On-Demand; hatched portion shows 2\% miss penalty. (b) Prophet maintains tight P99.9/P50 ratio (1.05--1.15$\times$) versus %baseline's high variance (1.50--1.75$\times$)., 
 enabling predictable SLO compliance.
-\textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
+\textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}, \textbf{EP}=\textit{Expert Parallel}.}
 \label{fig:latency_combined}
 \end{figure*}
 
@@ -134,9 +157,9 @@ Prophet's TPOT includes a small miss penalty (hatched portion in \Cref{fig:tpot_
 
 \noindent\textbf{Tail Latency.}
 %Production deployments require not just low mean latency but predictable tail latency for SLO compliance. 
-\Cref{fig:tail_cdf} shows latency distributions across 100,000 inference samples per model. Prophet's P99.9 improvements are even more dramatic than mean speedups: GPT-OSS-20B achieves 19.4$\times$ (4,520ms$\rightarrow$234ms), Mixtral 14.2$\times$ (6,733ms$\rightarrow$474ms), DeepSeek 5.8$\times$ (3,961ms$\rightarrow$679ms), Qwen3 4.3$\times$ (10,715ms$\rightarrow$2,477ms), and Qwen1.5 2.4$\times$ (1,958ms$\rightarrow$832ms). This stability is critical: baseline systems exhibit P99.9/P50 ratios of 1.50--1.75$\times$ due to unpredictable cache misses, while Prophet maintains tight ratios of only 1.05--1.15$\times$ by ensuring high-probability experts are preloaded.
+\Cref{fig:tail_cdf} shows latency distributions across 100,000 inference samples per model. Prophet achieves: GPT-OSS-20B achieves 19.4$\times$ (4,520ms$\rightarrow$234ms), Mixtral 14.2$\times$ (6,733ms$\rightarrow$474ms), DeepSeek 5.8$\times$ (3,961ms$\rightarrow$679ms), Qwen3 4.3$\times$ (10,715ms$\rightarrow$2,477ms), and Qwen1.5 2.4$\times$ (1,958ms$\rightarrow$832ms). This stability is critical: baseline systems exhibit P99.9/P50 ratios of 1.50--1.75$\times$ due to unpredictable cache misses, while Prophet maintains tight ratios of only 1.05--1.15$\times$ by prefetching high-probability experts.
 
-\begin{figure*}[t]
+\begin{figure*}[]
 \centering
 \begin{subfigure}[b]{0.48\linewidth}
 \includegraphics[width=\linewidth]{figs/fig5_memory_breakdown.pdf}
@@ -150,7 +173,7 @@ Prophet's TPOT includes a small miss penalty (hatched portion in \Cref{fig:tpot_
 \label{fig:context}
 \end{subfigure}
 \vspace{-5pt}
-\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, FA=FATE, PS=PreScope, Pr=Prophet.}
+\caption{Memory efficiency and context extension within 640GB budget. (a) Prophet reduces expert memory by 70\% across all models, reallocating freed memory to KV cache. (b) This enables 4--8$\times$ longer contexts (32K$\rightarrow$131K for Qwen1.5, 8K$\rightarrow$65K for others) while maintaining near-EP latency. \textbf{M1}: \textit{Qwen}, \textbf{M2}: \textit{DeepSeek}, \textbf{M3}: \textit{GPT-OSS}, \textbf{M4}: \textit{Qwen3}, \textbf{M5}: \textit{Mixtral}. Systems: OD=On-Demand, EF=ExpertFlow, PM=ProMoE, FA=FATE, PS=PreScope, EP=Expert Parallel, Pr=Prophet.}
 \label{fig:memory_combined}
 \end{figure*}
 
@@ -159,7 +182,7 @@ Prophet's TPOT includes a small miss penalty (hatched portion in \Cref{fig:tpot_
 
 \Cref{fig:context} shows the maximum context length achievable within a fixed 640GB memory budget. Prophet enables dramatic context extension: Qwen1.5-MoE from 32K to 131K tokens (4$\times$), DeepSeek from 16K to 131K (8$\times$), and GPT-OSS/Qwen3/Mixtral from 8K to 65K (8$\times$). Notably, EP---while achieving the lowest latency---has the smallest context capacity (4--16K tokens) because it requires all experts to be GPU-resident. Prophet achieves the best of both worlds: near-EP latency with the highest context capacity. Compared to PreScope, Prophet achieves 1.2--1.8$\times$ higher context capacity despite similar TPOT. PreScope's Top-k prediction requires caching $\sim$2$\times$ more experts to achieve comparable hit rates, leaving less memory for KV cache. This advantage scales with expert size: Mixtral (1.3GB/expert) shows 1.78$\times$ improvement versus 1.23$\times$ for Qwen1.5 (100MB/expert).
 
-\begin{figure}[t]
+\begin{figure}[]
 \centering
 \includegraphics[width=\linewidth]{figs/fig4_oi_vs_tpot.pdf}
 \vspace{-15pt}
@@ -181,7 +204,7 @@ While Prophet primarily targets latency-critical BS=1 inference, we evaluate thr
 \noindent\textbf{Batch Size Scaling.}
 Prophet's speedup remains stable across batch sizes 1--16, with <5\% relative decrease at larger batches. This stability occurs because Prophet's prediction accuracy is per-token (not batch-dependent), while baselines benefit from incidental expert reuse at larger batches---partially closing the gap but never eliminating Prophet's prediction advantage.
 
-\begin{table}[t]
+\begin{table}[]
 \centering
 \small
 \begin{tabular}{lccc}
