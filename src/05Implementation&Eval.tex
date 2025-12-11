@@ -15,15 +15,9 @@ At runtime, we employ CUDA graph capture for predictor inference and implement a
 Our primary evaluation platform uses NVIDIA A100-80GB GPUs (PCIe 4.0) with 2 TB/s HBM bandwidth. Host memory comprises 512GB DDR4-3200 providing 204 GB/s bandwidth, connected via PCIe 4.0 at 64 GB/s bidirectional. For multi-GPU experiments, we use 4$\times$ A100 GPUs interconnected with NVLink (600 GB/s aggregate). This configuration represents a typical cloud deployment scenario where GPU memory is constrained relative to model size, necessitating expert offloading to host memory.
 
 \noindent\textbf{Target Models.}
-<<<<<<< HEAD
-We evaluate on five production MoE architectures representing the current state-of-the-art: GPT-OSS-20B
-%\footnote{\url{https://huggingface.co/openai/gpt-oss-20b}}
-([\textbf{M3}], 32 experts, top-4 routing, $\sim$600MB per expert, 20B total parameters), Mixtral-8x7B~\cite{jiang2024mixtral} ([\textbf{M5}], 8 experts, top-2 routing, $\sim$1.3GB per expert, 46.7B total), DeepSeek-MoE-16B~\cite{dai2024deepseekmoe} ([\textbf{M2}], 64 routed + 1 shared experts, top-6 routing, $\sim$250MB per expert, 16B total), Qwen3-30B~\cite{yang2025qwen3} ([\textbf{M4}], 128 experts, top-8 routing, $\sim$250MB per expert, 30B total), and Qwen1.5-MoE-A2.7B~\cite{bai2023qwen} ([\textbf{M1}], 60 routed + 4 shared experts, top-4 routing, $\sim$100MB per expert, 14.3B total). This selection spans diverse expert counts (8--128), routing strategies (top-2 to top-8), and model scales (14--47B parameters). Architectures with shared experts (Qwen, DeepSeek) have reduced prediction uncertainty since shared experts are deterministically activated; our information-theoretic analysis (\Cref{sec:Motivation}) shows the $\sim$59\% exploitable entropy ratio holds across all five architectures despite these variations. We exclude Switch Transformer from our main evaluation as its top-1 routing is substantially easier to predict and well-studied in prior work~\cite{promoe, pregated}; our target models present more challenging benchmarks.
-=======
 We evaluate on five production MoE architectures representing the current state-of-the-art: GPT-OSS-20B~\cite{gptoss}
 %\footnote{\url{https://huggingface.co/openai/gpt-oss-20b}} 
 ([\textbf{M3}], 32 experts, top-4 routing, $\sim$600MB per expert, 20B total parameters), Mixtral-8x7B~\cite{jiang2024mixtral} ([\textbf{M5}], 8 experts, top-2 routing, $\sim$1.3GB per expert, 46.7B total), DeepSeek-MoE-16B~\cite{dai2024deepseekmoe} ([\textbf{M2}], 64 routed + 1 shared experts, top-6 routing, $\sim$250MB per expert, 16B total), Qwen3-30B~\cite{yang2025qwen3} ([\textbf{M4}], 128 experts, top-8 routing, $\sim$250MB per expert, 30B total), and Qwen1.5-MoE-A2.7B~\cite{bai2023qwen} ([\textbf{M1}], 60 routed + 4 shared experts, top-4 routing, $\sim$100MB per expert, 14.3B total). This selection spans diverse expert counts (8--128), routing strategies (top-2 to top-8), and model scales (14--47B parameters). We exclude Switch Transformer from our main evaluation as its top-1 routing is substantially easier to predict and well-studied in prior work~\cite{promoe, pregated}; our target models present more challenging benchmarks.
->>>>>>> overleaf-2025-12-11-1818
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
 \subsection{Experimental Setup}
@@ -128,7 +122,7 @@ Async prefetch & 0.7ms & 0 & Overlapped \\
 \end{table}
 
 \noindent\textbf{Predictor Overhead.}
-\Cref{tab:overhead} breaks down Prophet's runtime overhead. The predictor forward pass takes 0.8ms with 32MB for 8.4M parameters; context encoding adds 0.5ms (reused across tokens); and async prefetch coordination adds 0.7ms (overlapped with compute). The total 2.0ms overhead represents $<$1\% of baseline TPOT for all models. One-time training cost (3.5--4.5 hours on A100) amortizes across all subsequent inference runs.
+\Cref{tab:overhead} breaks down Prophet's runtime overhead. The predictor forward pass takes 0.8ms with 32MB for 8.4M parameters; context encoding adds 0.5ms (reused across tokens); and async prefetch coordination adds 0.7ms (overlapped with compute). The total 2.0ms overhead represents $<$1\% of baseline TPOT for all models. One-time training cost (3.5--4.5 hours on A100) amortizes across all subsequent inference runs. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}.
 
 %%%%%%%%%% %%%%%%%%%% %%%%%%%%%% %%%%%%%%%%
 \subsection{Latency-Critical Evaluation}

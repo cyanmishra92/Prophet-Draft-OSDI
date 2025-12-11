@@ -3,7 +3,7 @@
 \label{sec:design}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Prophet integrates two key components grounded in our information-theoretic analysis (\Cref{sec:Motivation}): a \textbf{neural expert predictor} that forecasts expert needs multiple layers ahead by exploiting cross-layer routing dependencies, and a \textbf{prediction-guided hierarchical cache} that maps prediction confidence to cache tier placement. Prophet operates transparently at inference time without requiring modifications to MoE models.
+% Prophet integrates two key components grounded in our information-theoretic analysis (\Cref{sec:Motivation}): a \textbf{neural expert predictor} that forecasts expert needs multiple layers ahead by exploiting cross-layer routing dependencies, and a \textbf{prediction-guided hierarchical cache} that maps prediction confidence to cache tier placement. Prophet operates transparently at inference time without requiring modifications to MoE models.
 
 
 \subsection{Neural Expert Prediction}
@@ -104,9 +104,9 @@ Concurrent work PreScope~\cite{prescope} illustrates these tradeoffs: their MLP-
 
 \noindent\textbf{Training:} We employ a composite loss $\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{classification}} + \lambda_2 \mathcal{L}_{\text{ranking}} + \lambda_3 \mathcal{L}_{\text{confidence}}$, combining cross-entropy for prediction accuracy, ranking loss for probability ordering, and Brier score for confidence calibration. Training uses AdamW with cosine annealing, converging in 3.5--4.5 hours on a single A100. Systematic exploration confirms $c = 3$ and $h = 3$ provide optimal performance (\Cref{fig:predictor_accuracy}), outperforming state-of-the-art~\cite{promoe, pregated,prescope}.% ProMoE~\cite{promoe} and PreGated MoE~\cite{pregated}.
 
-\noindent\textbf{Prediction Accuracy and Overhead:}
-We define prediction accuracy as \textit{top-1 per-token-per-layer} accuracy: for each token $t$ at prediction horizon $h$, we check whether the predicted expert $\hat{e}_t^{(\ell+h)}$ matches the ground-truth expert selection $e_t^{(\ell+h)}$. This strict metric directly corresponds to prefetch utility, i.e., correct predictions enable cache hits, while incorrect predictions waste bandwidth. Across our evaluation, \design achieves 80--89\% top-1 accuracy across the five target architectures at horizon $h=3$, compared to 0.78--1.56\% random baselines showing over $50\times$ improvement.
-The 8.4M-parameter predictor adds $<$1\% latency and $<$2\% memory overhead; detailed breakdown in \Cref{subsec:predictor}. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}.
+% \noindent\textbf{Prediction Accuracy and Overhead:}
+% We define prediction accuracy as \textit{top-1 per-token-per-layer} accuracy: for each token $t$ at prediction horizon $h$, we check whether the predicted expert $\hat{e}_t^{(\ell+h)}$ matches the ground-truth expert selection $e_t^{(\ell+h)}$. This strict metric directly corresponds to prefetch utility, i.e., correct predictions enable cache hits, while incorrect predictions waste bandwidth. Across our evaluation, \design achieves 80--89\% top-1 accuracy across the five target architectures at horizon $h=3$, compared to 0.78--1.56\% random baselines showing over $50\times$ improvement.
+% The 8.4M-parameter predictor adds $<$1\% latency and $<$2\% memory overhead; detailed breakdown in \Cref{subsec:predictor}. An anonymized implementation of the Prophet predictor is \href{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}{available here}.
 %
 %\footnote{\url{https://anonymous.4open.science/r/prophet-artifact-5B42/README.md}}.
 
@@ -163,8 +163,8 @@ Prophet achieves $\sim$98\% effective hit rates despite 80--89\% top-1 predictio
 \noindent\textbf{Scalability.}
 Prophet scales across several dimensions. \textit{Model size:} The predictor's 8.4M parameters remain constant regardless of target MoE model size; only the expert embedding dimension changes (128--256 experts). \textit{Prediction horizon:} While $h=3$ provides optimal accuracy-latency tradeoff for current hardware, the architecture supports longer horizons with graceful accuracy degradation (\Cref{fig:predictor_accuracy}); as memory bandwidth improves, shorter horizons may suffice. \textit{Multi-GPU deployment:} In pipeline-parallel settings where GPUs handle specific layer ranges, per-GPU predictors can specialize on their assigned layers, reducing prediction complexity while exploiting layer-specific routing patterns.
 
-\noindent\textbf{Hardware Evolution.}
-H100 GPUs increase HBM bandwidth to 3.35 TB/s, but PCIe 5.0 host-to-device bandwidth (64 GB/s bidirectional) remains the offloading bottleneck. Prophet's analysis suggests that as interconnect improves, shorter prediction horizons ($h=1$--$2$) may suffice, reducing predictor complexity. However, the fundamental I/O-compute imbalance persists for memory-constrained deployments: expert weights (GB-scale) dominate activated compute (MB-scale) regardless of interconnect generation, ensuring Prophet's predictive approach remains beneficial.
+% \noindent\textbf{Hardware Evolution.}
+% H100 GPUs increase HBM bandwidth to 3.35 TB/s, but PCIe 5.0 host-to-device bandwidth (64 GB/s bidirectional) remains the offloading bottleneck. Prophet's analysis suggests that as interconnect improves, shorter prediction horizons ($h=1$--$2$) may suffice, reducing predictor complexity. However, the fundamental I/O-compute imbalance persists for memory-constrained deployments: expert weights (GB-scale) dominate activated compute (MB-scale) regardless of interconnect generation, ensuring Prophet's predictive approach remains beneficial.
 
 % \noindent\textbf{Continuous Batching Integration.}
 % Prophet's prediction mechanism is compatible with continuous batching frameworks (vLLM, TGI) that dynamically schedule requests for throughput optimization. In continuous batching, new requests join ongoing batches at iteration boundaries. Prophet accommodates this by: (1) maintaining per-request routing history that persists across batch iterations, (2) updating predictions as new tokens generate, and (3) aggregating cache priorities across concurrent requests to maximize shared expert reuse. The power-law expert concentration (\Cref{sec:Motivation}) ensures that popular experts remain in L1 cache across request boundaries, reducing cold-start penalties for newly-joined requests.
