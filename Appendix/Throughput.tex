@@ -1,0 +1,146 @@
+\section{Throughput Evaluation Details}
+\label{sec:throughput-details}
+
+This appendix provides detailed analysis of Prophet's throughput-critical performance, including mathematical derivation of deduplication benefits from power-law distributions, comprehensive batch scaling results, and multi-GPU tensor parallelism evaluation.
+
+\subsection{Mathematical Foundation: Power-Law to Deduplication}
+\label{subsec:throughput-details}
+
+The power-law expert popularity distribution ($\alpha = 1.2$--$2.2$) directly enables bandwidth savings through batch-level deduplication. We derive the expected number of unique experts $U(B)$ in a batch of size $B$.
+
+For a power-law distribution with exponent $\alpha$, expert $i$ has selection probability $p_i \propto i^{-\alpha}$. The probability that expert $i$ is \textit{not} selected by any of $B$ independent tokens is $(1-p_i)^B$. Thus, the expected number of unique experts is:
+\begin{equation}
+\mathbb{E}[U(B)] = \sum_{i=1}^{N} \left(1 - (1-p_i)^B\right) \approx N \cdot \left(1 - e^{-B/N_{\text{eff}}}\right)
+\end{equation}
+where $N_{\text{eff}}$ is the effective expert count accounting for power-law concentration. Empirical fitting across our five models yields:
+\begin{equation}
+\mathbb{E}[U(B)] \sim B^{0.932}
+\end{equation}
+This sub-linear scaling (exponent $<1$) quantifies deduplication: at $B=16$, we expect $\sim$13.4 unique experts versus 16 with uniform distribution---a 16\% bandwidth reduction from deduplication alone.
+
+\noindent\textbf{Intuition.} The power-law concentration means a small number of ``popular'' experts handle most routing decisions. When batching multiple tokens, these popular experts are likely requested by multiple tokens simultaneously. Rather than fetching duplicate copies, Prophet identifies unique experts across the batch and fetches each only once. The stronger the power-law (higher $\alpha$), the greater the deduplication benefit.
+
+\subsection{Batch Size Scaling Results}
+
+\Cref{tab:batch-detailed} presents Prophet's speedup across batch sizes for all five evaluated models. The speedup remains stable with $<$5\% relative decrease at larger batches.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{BS=1} & \textbf{BS=4} & \textbf{BS=8} & \textbf{BS=16} \\
+\midrule
+GPT-OSS-20B & 10.38$\times$ & 10.10$\times$ & 10.00$\times$ & 9.90$\times$ \\
+Mixtral-8x7B & 8.03$\times$ & 7.70$\times$ & 7.60$\times$ & 7.50$\times$ \\
+DeepSeek-MoE-16B & 3.64$\times$ & 3.54$\times$ & 3.47$\times$ & 3.40$\times$ \\
+Qwen3-30B & 2.74$\times$ & 2.64$\times$ & 2.57$\times$ & 2.50$\times$ \\
+Qwen1.5-MoE & 1.53$\times$ & 1.50$\times$ & 1.47$\times$ & 1.44$\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Detailed speedup vs.\ batch size. Prophet maintains 1.4--10$\times$ speedup across BS=1--16 with stable relative performance.}
+\label{tab:batch-detailed}
+\end{table}
+
+The speedup stability arises because Prophet's prediction accuracy is per-token (batch-independent), while baselines benefit from incidental expert reuse at larger batches---partially closing the gap but never eliminating Prophet's prediction advantage.
+
+\subsection{Bandwidth Comparison with Baselines}
+
+\Cref{tab:bandwidth-comparison} compares bandwidth requirements across systems at different batch sizes. Prophet's deduplication provides substantial savings over approaches without deduplication, particularly PreScope.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{System} & \textbf{Experts/Token} & \textbf{Deduplication} & \textbf{Bandwidth @ BS=16} \\
+\midrule
+On-Demand & $k$ (top-k) & Per-token & $16 \times k$ \\
+PreScope & $4$ (top-4) & None & $16 \times 4 = 64$ \\
+Prophet & $k$ (top-k) & Batch-level & $\sim 13.4 \times k$ \\
+\bottomrule
+\end{tabular}
+\caption{Bandwidth comparison. PreScope's top-4 prediction without deduplication requires 4$\times$ more bandwidth than Prophet at equivalent batch sizes.}
+\label{tab:bandwidth-comparison}
+\end{table}
+
+At BS=16, Prophet fetches $\sim$0.84$\times$ the bandwidth of On-Demand (due to deduplication) and $\sim$0.21$\times$ the bandwidth of PreScope (due to both deduplication and top-1 vs.\ top-4 prediction).
+
+\noindent\textbf{Bandwidth Scaling Analysis.} \Cref{tab:bandwidth-scaling} provides detailed bandwidth ratios across batch sizes for all systems.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{System Comparison} & \textbf{BS=1} & \textbf{BS=4} & \textbf{BS=8} & \textbf{BS=16} \\
+\midrule
+Prophet / On-Demand & 1.00 & 0.94 & 0.89 & 0.84 \\
+Prophet / PreScope & 0.25 & 0.23 & 0.22 & 0.21 \\
+Unique Expert Ratio & 1.00 & 0.94 & 0.89 & 0.84 \\
+\bottomrule
+\end{tabular}
+\caption{Bandwidth ratios across batch sizes. Prophet's advantage over PreScope (0.21--0.25$\times$) combines deduplication benefit with top-1 vs.\ top-4 prediction efficiency.}
+\label{tab:bandwidth-scaling}
+\end{table}
+
+\subsection{Multi-GPU Tensor Parallelism Results}
+
+\Cref{tab:tp-detailed} presents detailed tensor parallelism scaling results. Prophet's speedup advantage is preserved across TP=1--8, with relative performance remaining within 2\%.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{TP=1} & \textbf{TP=2} & \textbf{TP=4} & \textbf{TP=8} \\
+\midrule
+GPT-OSS-20B & 10.4$\times$ & 10.4$\times$ & 10.3$\times$ & 10.2$\times$ \\
+Mixtral-8x7B & 8.0$\times$ & 8.0$\times$ & 7.9$\times$ & 7.8$\times$ \\
+DeepSeek-MoE-16B & 3.6$\times$ & 3.6$\times$ & 3.6$\times$ & 3.5$\times$ \\
+Qwen3-30B & 2.7$\times$ & 2.7$\times$ & 2.7$\times$ & 2.6$\times$ \\
+Qwen1.5-MoE & 1.5$\times$ & 1.5$\times$ & 1.5$\times$ & 1.5$\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Tensor parallelism scaling. Prophet's speedup remains stable across TP=1--8 because routing decisions are determined by model architecture, not parallelization strategy.}
+\label{tab:tp-detailed}
+\end{table}
+
+In tensor-parallel configurations, expert loading becomes a per-GPU operation with experts partitioned across devices. Prophet's predictions remain accurate because the router weights and routing logic are replicated across all GPUs, producing identical expert selection decisions regardless of how experts are distributed.
+
+\noindent\textbf{Why TP Doesn't Affect Prediction.} The MoE router is a small linear layer ($d_{\text{model}} \times N_{\text{experts}}$) that is replicated across all GPUs in tensor parallelism. Each GPU computes identical routing decisions from identical hidden states. Expert parallelism (EP) partitions experts across GPUs, but Prophet's predictor operates on routing decisions, not expert locations---making predictions hardware-agnostic.
+
+\subsection{Cache Residency at Large Batches}
+
+At batch sizes exceeding 16, the power-law concentration creates high cache residency for popular experts. With the top 20\% of experts handling 75\% of routing decisions, these popular experts remain GPU-resident across batch iterations. In this regime, cache management and eviction policies dominate over prediction accuracy---Prophet's advantage shifts from prediction to efficient cache utilization.
+
+\Cref{tab:cache-residency} shows expected cache hit rates at different batch sizes, assuming an LRU cache sized for 25\% of total experts.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Batch Size} & \textbf{BS=1} & \textbf{BS=8} & \textbf{BS=16} & \textbf{BS=32} \\
+\midrule
+Cache Hit Rate & 0.75 & 0.82 & 0.87 & 0.91 \\
+Prediction Value & High & High & Medium & Low \\
+\bottomrule
+\end{tabular}
+\caption{Cache residency increases with batch size due to power-law concentration. At BS$>$16, prediction accuracy becomes less critical as popular experts remain GPU-resident.}
+\label{tab:cache-residency}
+\end{table}
+
+\noindent\textbf{Design Implications.} This analysis clarifies Prophet's design target: latency-critical BS=1 inference where prediction accuracy directly determines performance. For throughput-critical large-batch workloads, Prophet provides stable speedups but the relative advantage of accurate prediction diminishes as cache management dominates. Future work on cache-aware prediction could further optimize the large-batch regime.
+
+\subsection{Continuous Batching Considerations}
+
+Prophet's per-token routing history naturally extends to continuous batching frameworks (vLLM, TGI) that dynamically schedule requests:
+
+\begin{itemize}
+\item \textbf{Per-request history:} Each request maintains its own routing history, persisting across batch iterations as new tokens are generated.
+\item \textbf{Cross-request deduplication:} When multiple requests in a continuous batch require the same expert, Prophet's batch-level deduplication applies across all active requests.
+\item \textbf{Iteration-level prediction:} Predictions update as new tokens generate, with the predictor processing routing decisions from all active requests in the iteration.
+\end{itemize}
+
+The power-law expert concentration ensures popular experts remain cached across request boundaries, providing natural ``warm start'' benefits for new requests joining an active batch.
