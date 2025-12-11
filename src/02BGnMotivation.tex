@@ -85,11 +85,11 @@ entropy estimators over 37,200 execution traces ($\sim$3.34M expert selections) 
 \noindent\textbf{Information Budget.} Maximum entropy scales as $\log_2(N)$ bits for $N$ experts---ranging from 3 bits for Mixtral (8 experts) to 7 bits for Qwen3 (128 experts). When we expand beyond pairwise MI to incorporate a 3-layer context window with hidden states, our analysis reveals that approximately 59\% of maximum entropy is consistently exploitable for prediction across all five evaluation architectures, decomposed as:% follows:
 % \begin{itemize}[leftmargin=*, nosep]
     % \item 
-    \textbf{Expert context from preceding 3 layers (63\% of exploitable):} The sequence of recently-selected experts provides the dominant predictive signal. When a token routes through experts $e_1 \rightarrow e_2 \rightarrow e_3$ across layers, this trajectory strongly constrains which experts will be selected next.
+    \textbf{Expert context from preceding 3 layers (37\% of maximum entropy):} The sequence of recently-selected experts provides the dominant predictive signal. When a token routes through experts $e_1 \rightarrow e_2 \rightarrow e_3$ across layers, this trajectory strongly constrains which experts will be selected next.
     %\item
-    \textbf{Hidden states (18\% of exploitable):} Token representations carry routing-relevant information that correlates with expert selection.
+    \textbf{Hidden states (11\% of maximum entropy):} Token representations carry routing-relevant information that correlates with expert selection.
     %\item
-    \textbf{Attention patterns (18\% of exploitable):} Attention weights reflect semantic structure that influences routing decisions.
+    \textbf{Attention patterns (11\% of maximum entropy):} Attention weights reflect semantic structure that influences routing decisions.
 % \end{itemize}
 The temporal structure exhibits layer-dependent specialization: early layers show syntactic correlations with surface-level patterns, while deeper layers exhibit semantic dependencies spanning longer contexts~\cite{liu2024fantastic, rajbhandari2022deepspeed, zhang2024harder}. This hierarchical nature motivates prediction architectures that capture dependencies across multiple layers simultaneously.
 
@@ -98,7 +98,7 @@ The theoretical maximum $\log_2(N)$ assumes uniform expert selection---an ideali
 \textit{(1) Top-k routing:} Models like Qwen (top-8) and Mixtral (top-2) select multiple experts per token, but prediction targets the \textit{dominant} expert (highest gating weight), reducing the output space.
 \textit{(2) Shared experts:} Qwen architectures include shared experts that are deterministically activated (zero entropy), leaving only $N_r$ routing experts with uncertainty---e.g., Qwen1.5-MoE has 4 shared + 60 routing experts, so $H_{\max} = \log_2(60) = 5.9$ bits rather than $\log_2(64)$.
 \textit{(3) Power-law concentration:} The heavy-tailed distribution ($\alpha = 1.2$--$2.2$) yields effective entropy $H_{\text{eff}} = -\sum_i p_i \log_2 p_i \ll \log_2(N)$. With the top 20\% of experts handling 75\% of decisions, even a simple frequency-based prior achieves $\sim$12\% accuracy versus $1/N$ for uniform sampling.
-These factors explain why the exploitable fraction ($\sim$59\%) remains consistent across architectures with 8--128 experts: the \textit{relative} reduction from power-law concentration and cross-layer dependencies is architecture-invariant, even as absolute entropy varies. The information budget reveals that 63\% of exploitable information comes from the \textit{sequential pattern of expert selections} across layers, making expert prediction fundamentally a \textbf{sequence modeling problem}.
+These factors explain why the exploitable fraction ($\sim$59\%) remains consistent across architectures with 8--128 experts: the \textit{relative} reduction from power-law concentration and cross-layer dependencies is architecture-invariant, even as absolute entropy varies. The information budget reveals that expert routing history dominates the exploitable signal (37\% of total entropy, or 63\% of the exploitable 59\%), making expert prediction fundamentally a \textbf{sequence modeling problem}.
 
 %\subsection{Implications for Predictor Design}
 % The information budget reveals that 63\% of exploitable information comes from the \textit{sequential pattern of expert selections} across layers, making expert prediction fundamentally a \textbf{sequence modeling problem}.
